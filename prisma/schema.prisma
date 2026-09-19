@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  clerkId       String   @unique
+  email         String   @unique
+  niche         String[] @default([])
+  followerStage String?
+  createdAt     DateTime @default(now())
+
+  experiments Experiment[]
+}
+
+model Strategy {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  nicheTags   String[]
+  stageTags   String[]
+  createdAt   DateTime @default(now())
+
+  experiments Experiment[]
+}
+
+model Experiment {
+  id         String   @id @default(cuid())
+  userId     String
+  strategyId String
+  status     String   @default("active")
+  startedAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  strategy Strategy @relation(fields: [strategyId], references: [id])
+  checkIns CheckIn[]
+}
+
+model CheckIn {
+  id            String   @id @default(cuid())
+  experimentId  String
+  followerCount Int
+  loggedAt      DateTime @default(now())
+
+  experiment Experiment @relation(fields: [experimentId], references: [id])
+}
+
+model Creator {
+  id        String   @id @default(cuid())
+  name      String
+  handle    String
+  niche     String
+  notes     String
+  createdAt DateTime @default(now())
+
+  posts CreatorPost[]
+}
+
+model CreatorPost {
+  id         String   @id @default(cuid())
+  creatorId  String
+  patternTag String
+  postUrl    String?
+  createdAt  DateTime @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id])
+}
