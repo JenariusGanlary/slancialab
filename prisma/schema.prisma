@@ -61,11 +61,13 @@ model Creator {
 }
 
 model CreatorPost {
-  id         String   @id @default(cuid())
-  creatorId  String
-  patternTag String
-  postUrl    String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  creatorId   String
+  patternTag  String
+  content     String?
+  observation String?
+  postUrl     String?
+  createdAt   DateTime @default(now())
 
   creator Creator @relation(fields: [creatorId], references: [id])
 }
