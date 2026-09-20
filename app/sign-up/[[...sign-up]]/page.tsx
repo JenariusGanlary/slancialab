@@ -22,17 +22,24 @@ export default function SignUpPage() {
             borderRadius: "10px",
           },
           elements: {
-            card: { backgroundColor: "#14181A" },
+            card: {
+              backgroundColor: "#14181A",
+            },
             socialButtonsBlockButton: {
               backgroundColor: "rgba(255,255,255,0.04)",
               borderColor: "rgba(255,255,255,0.14)",
               color: "#ECE7DC",
             },
-            dividerLine: { backgroundColor: "rgba(255,255,255,0.1)" },
-            dividerText: { color: "#8B9290" },
+            dividerLine: {
+              backgroundColor: "rgba(255,255,255,0.1)",
+            },
+            dividerText: {
+              color: "#8B9290",
+            },
           },
         }}
-        fallbackRedirectUrl="/"
+        forceRedirectUrl="/onboarding"
+        fallbackRedirectUrl="/onboarding"
         signInUrl="/sign-in"
       />
     </main>

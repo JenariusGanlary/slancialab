@@ -13,12 +13,71 @@ import { prisma } from "@/lib/prisma";
 import { startTracking } from "./actions";
 import { AppLayout } from "../components/AppLayout";
 
-export default async function StrategiesPage() {
+type StrategiesPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function getSearchParam(
+  params: Record<string, string | string[] | undefined>,
+  key: string
+) {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function StrategiesPage({
+  searchParams,
+}: StrategiesPageProps) {
   const { userId } = await auth();
 
   if (!userId) {
     redirect("/");
   }
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  const researchEnabled =
+    getSearchParam(resolvedSearchParams, "research") === "1";
+
+  const researchCreatorId = getSearchParam(
+    resolvedSearchParams,
+    "researchCreatorId"
+  );
+
+  const researchPattern = getSearchParam(
+    resolvedSearchParams,
+    "researchPattern"
+  );
+
+  const researchSignal = getSearchParam(
+    resolvedSearchParams,
+    "researchSignal"
+  );
+
+  const researchPostCount = getSearchParam(
+    resolvedSearchParams,
+    "researchPostCount"
+  );
+
+  const researchMeasuredCount = getSearchParam(
+    resolvedSearchParams,
+    "researchMeasuredCount"
+  );
+
+  const researchEvidence = getSearchParam(
+    resolvedSearchParams,
+    "researchEvidence"
+  );
+
+  const researchLift = getSearchParam(
+    resolvedSearchParams,
+    "researchLift"
+  );
+
+  const researchDimension = getSearchParam(
+    resolvedSearchParams,
+    "researchDimension"
+  );
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
@@ -28,7 +87,7 @@ export default async function StrategiesPage() {
     redirect("/onboarding");
   }
 
-  const [strategies, activeExperiments, totalExperiments] =
+  const [strategies, activeExperiments, totalExperiments, researchCreator] =
     await Promise.all([
       prisma.strategy.findMany({
         where: {
@@ -53,6 +112,16 @@ export default async function StrategiesPage() {
           userId: user.id,
         },
       }),
+
+      researchEnabled && researchCreatorId
+        ? prisma.creator.findUnique({
+            where: { id: researchCreatorId },
+            select: {
+              name: true,
+              handle: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
   const trackedStrategyIds = new Set(
@@ -60,6 +129,17 @@ export default async function StrategiesPage() {
   );
 
   const isFirstVisit = totalExperiments === 0;
+
+  const hasResearchContext =
+    researchEnabled &&
+    Boolean(
+      researchCreatorId &&
+        researchPattern &&
+        researchSignal &&
+        researchPostCount &&
+        researchMeasuredCount &&
+        researchEvidence
+    );
 
   return (
     <AppLayout>
@@ -85,8 +165,8 @@ export default async function StrategiesPage() {
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  Choose a strategy that fits your audience, run it consistently,
-                  and measure what happens.
+                  Choose a strategy that fits your audience, run it
+                  consistently, and measure what happens.
                 </p>
               </div>
 
@@ -135,6 +215,99 @@ export default async function StrategiesPage() {
               </div>
             </div>
           </div>
+
+          {/* Research context */}
+          {researchEnabled && researchPattern && (
+            <section className="relative mb-9 overflow-hidden rounded-2xl border border-violet-400/15 bg-violet-400/[0.025]">
+              <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-violet-500/[0.07] blur-[80px]" />
+
+              <div className="relative p-5 sm:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[0.07]">
+                      <Sparkles size={17} className="text-violet-400" />
+                    </div>
+
+                    <div>
+                      <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-violet-400/70">
+                        Research finding
+                      </div>
+
+                      <h2
+                        className="text-lg font-semibold tracking-[-0.02em] text-white"
+                        style={{ fontFamily: "Fraunces, serif" }}
+                      >
+                        Test the {researchPattern} pattern.
+                      </h2>
+
+                      <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                        You arrived here from Creator Intelligence. Use this
+                        finding as research context when choosing the strategy
+                        you want to test on your own account.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-emerald-400/10 bg-emerald-400/[0.05] px-2.5 py-1.5 text-[9px] font-medium capitalize text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    {researchSignal ?? "research"} signal
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Pattern
+                    </div>
+
+                    <div className="mt-1 text-xs font-medium text-slate-300">
+                      {researchPattern}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Evidence
+                    </div>
+
+                    <div className="mt-1 text-xs font-medium text-slate-300">
+                      {researchMeasuredCount ?? "—"} measured /{" "}
+                      {researchPostCount ?? "—"} posts
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Signal
+                    </div>
+
+                    <div className="mt-1 text-xs font-medium capitalize text-slate-300">
+                      {researchSignal ?? "—"}
+                      {researchLift ? ` · ${researchLift}% lift` : ""}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Source
+                    </div>
+
+                    <div className="mt-1 truncate text-xs font-medium text-slate-300">
+                      {researchCreator
+                        ? `${researchCreator.name} (@${researchCreator.handle})`
+                        : "Creator research"}
+                    </div>
+                  </div>
+                </div>
+
+                {researchEvidence && (
+                  <div className="mt-3 text-[10px] text-slate-600">
+                    {researchEvidence}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* First visit */}
           {isFirstVisit && (
@@ -308,6 +481,58 @@ export default async function StrategiesPage() {
                               name="strategyId"
                               value={strategy.id}
                             />
+
+                            {hasResearchContext && (
+                              <>
+                                <input
+                                  type="hidden"
+                                  name="researchCreatorId"
+                                  value={researchCreatorId ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchPattern"
+                                  value={researchPattern ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchDimension"
+                                  value={researchDimension ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchSignal"
+                                  value={researchSignal ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchPostCount"
+                                  value={researchPostCount ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchMeasuredCount"
+                                  value={researchMeasuredCount ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchEvidence"
+                                  value={researchEvidence ?? ""}
+                                />
+
+                                <input
+                                  type="hidden"
+                                  name="researchLift"
+                                  value={researchLift ?? ""}
+                                />
+                              </>
+                            )}
 
                             <button
                               type="submit"

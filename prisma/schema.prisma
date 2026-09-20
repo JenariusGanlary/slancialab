@@ -6,12 +6,98 @@ datasource db {
   provider = "postgresql"
 }
 
+enum HookType {
+  CONTRARIAN
+  CURIOSITY
+  QUESTION
+  STATEMENT
+  STORY
+  PROBLEM
+  BENEFIT
+  OTHER
+}
+
+enum ContentStructure {
+  CLAIM_EXPLANATION
+  HOOK_BODY_CTA
+  PROBLEM_SOLUTION
+  STORY_LESSON
+  LIST
+  FRAMEWORK
+  QUESTION_ANSWER
+  OTHER
+}
+
+enum Tone {
+  NEUTRAL
+  EDUCATIONAL
+  PROVOCATIVE
+  CONVERSATIONAL
+  INSPIRATIONAL
+  HUMOROUS
+  AUTHORITATIVE
+  PERSONAL
+  OTHER
+}
+
+enum ContentFormat {
+  OPINION
+  EDUCATIONAL
+  STORY
+  FRAMEWORK
+  LIST
+  QUESTION
+  OBSERVATION
+  THREAD
+  OTHER
+}
+
+enum CtaType {
+  NONE
+  QUESTION
+  FOLLOW
+  REPLY
+  CLICK
+  SHARE
+  SIGNUP
+  OTHER
+}
+
+enum ContentStyle {
+  STORY
+  EDUCATIONAL
+  OPINION
+  ENTERTAINMENT
+  PERSONAL
+  FRAMEWORK
+  OBSERVATIONAL
+  OTHER
+}
+
+enum Stance {
+  CONTRARIAN
+  CONVENTIONAL
+  NEUTRAL
+}
+
+enum SentenceType {
+  QUESTION
+  STATEMENT
+}
+
+enum Personalization {
+  PERSONAL
+  GENERIC
+}
+
 model User {
   id            String   @id @default(cuid())
   clerkId       String   @unique
   email         String   @unique
   niche         String[] @default([])
   followerStage String?
+  goal          String?
+  firstAction   String?
   createdAt     DateTime @default(now())
 
   experiments Experiment[]
@@ -29,15 +115,17 @@ model Strategy {
 }
 
 model Experiment {
-  id         String   @id @default(cuid())
-  userId     String
-  strategyId String
-  status     String   @default("active")
-  startedAt  DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  strategyId        String
+  researchFindingId String?
+  status            String   @default("active")
+  startedAt         DateTime @default(now())
 
-  user     User     @relation(fields: [userId], references: [id])
-  strategy Strategy @relation(fields: [strategyId], references: [id])
-  checkIns CheckIn[]
+  user            User             @relation(fields: [userId], references: [id])
+  strategy        Strategy         @relation(fields: [strategyId], references: [id])
+  researchFinding ResearchFinding? @relation(fields: [researchFindingId], references: [id])
+  checkIns        CheckIn[]
 }
 
 model CheckIn {
@@ -57,17 +145,68 @@ model Creator {
   notes     String
   createdAt DateTime @default(now())
 
-  posts CreatorPost[]
+  posts            CreatorPost[]
+  researchFindings ResearchFinding[]
+}
+
+model ResearchFinding {
+  id        String   @id @default(cuid())
+  creatorId String
+
+  // Pattern identity
+  dimension String
+  pattern   String
+
+  // Signal information
+  signalLevel String
+
+  // Evidence snapshot
+  postCount     Int
+  measuredCount Int
+  evidenceLabel String
+  medianLiftPercent Int?
+
+  createdAt DateTime @default(now())
+
+  creator     Creator      @relation(fields: [creatorId], references: [id])
+  experiments Experiment[]
 }
 
 model CreatorPost {
-  id          String   @id @default(cuid())
-  creatorId   String
-  patternTag  String
+  id        String @id @default(cuid())
+  creatorId String
+
+  // Existing research fields
+  patternTag  String?
   content     String?
   observation String?
   postUrl     String?
   createdAt   DateTime @default(now())
+
+  // Post metadata
+  publishedAt DateTime?
+
+  // Performance metrics
+  views   Int?
+  likes   Int?
+  replies Int?
+  reposts Int?
+
+  // Structured content analysis
+  hookType        HookType?
+  structure       ContentStructure?
+  topic           String?
+  tone            Tone?
+  format          ContentFormat?
+  ctaType         CtaType?
+  contentLength   Int?
+  contentStyle    ContentStyle?
+  stance          Stance?
+  sentenceType    SentenceType?
+  personalization Personalization?
+
+  // Future-friendly research metadata
+  researchNotes String?
 
   creator Creator @relation(fields: [creatorId], references: [id])
 }

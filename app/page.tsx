@@ -2,6 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+
 import { Hero } from "./components/landing/Hero";
 import { Features } from "./components/landing/Features";
 import { HowItWorks } from "./components/landing/HowItWorks";
@@ -16,12 +17,24 @@ export default async function Home() {
   const clerkUser = await currentUser();
 
   if (clerkUser) {
+    const email =
+      clerkUser.primaryEmailAddress?.emailAddress ??
+      clerkUser.emailAddresses[0]?.emailAddress;
+
+    if (!email) {
+      throw new Error("Authenticated Clerk user does not have an email address.");
+    }
+
     const user = await prisma.user.upsert({
-      where: { clerkId: clerkUser.id },
-      update: {},
+      where: {
+        clerkId: clerkUser.id,
+      },
+      update: {
+        email,
+      },
       create: {
         clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
+        email,
       },
     });
 
@@ -60,7 +73,8 @@ export default async function Home() {
     (sum, strategy) =>
       sum +
       strategy.experiments.reduce(
-        (experimentSum, experiment) => experimentSum + experiment.checkIns.length,
+        (experimentSum, experiment) =>
+          experimentSum + experiment.checkIns.length,
         0
       ),
     0
