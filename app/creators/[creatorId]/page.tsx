@@ -30,6 +30,7 @@ import {
   aggregatePatterns,
   DEFAULT_PATTERN_DIMENSIONS,
 } from "@/lib/pattern-aggregation";
+import { evaluatePatternSignals } from "@/lib/pattern-signals";
 
 type CreatorPageProps = {
   params: Promise<{
@@ -588,6 +589,10 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
     DEFAULT_PATTERN_DIMENSIONS
   );
 
+  const patternSignals = evaluatePatternSignals(
+    patternIntelligence
+  );
+
   return (
     <AppLayout>
       <main className="min-h-screen">
@@ -885,7 +890,7 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
               </p>
             </div>
 
-            {patternIntelligence.length === 0 ? (
+            {patternSignals.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/[0.07] bg-white/[0.01] px-5 py-8 text-center">
                 <p className="text-xs text-slate-600">
                   Classify more studied posts to see patterns here.
@@ -893,38 +898,46 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {patternIntelligence.map((observation) => (
+                {patternSignals.map((signal) => (
                   <div
-                    key={`${observation.dimension}-${observation.value}`}
+                    key={`${signal.dimension}-${signal.value}`}
                     className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-4"
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <h3 className="text-[11px] font-semibold text-slate-300">
-                          {observation.dimensionLabel}
+                          {signal.dimensionLabel}
                         </h3>
 
                         <p className="mt-1 text-[9px] text-slate-700">
-                          {observation.count}{" "}
-                          {observation.count === 1 ? "post" : "posts"} studied
+                          {signal.count}{" "}
+                          {signal.count === 1 ? "post" : "posts"} studied
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-3 space-y-2">
                       <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-3">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <SignalBadge level={signal.signalLevel} />
+
+                          <span className="text-[9px] text-slate-700">
+                            {signal.signalLabel}
+                          </span>
+                        </div>
+
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <p className="text-xs font-medium text-slate-300">
-                              {observation.value}
+                              {signal.value}
                             </p>
 
                             <p className="mt-1 text-[9px] leading-5 text-slate-600">
-                              {observation.count}{" "}
-                              {observation.count === 1 ? "post" : "posts"}
+                              {signal.count}{" "}
+                              {signal.count === 1 ? "post" : "posts"}
                               {" · "}
-                              {observation.availableViews}{" "}
-                              {observation.availableViews === 1
+                              {signal.availableViews}{" "}
+                              {signal.availableViews === 1
                                 ? "with performance data"
                                 : "with performance data"}
                             </p>
@@ -936,8 +949,8 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
                             </p>
 
                             <p className="mt-1 text-sm font-semibold text-slate-300">
-                              {observation.medianViews !== null
-                                ? `~${observation.medianViews.toLocaleString("en-IN")} views`
+                              {signal.medianViews !== null
+                                ? `~${signal.medianViews.toLocaleString("en-IN")} views`
                                 : "Not enough data"}
                             </p>
                           </div>
@@ -950,15 +963,15 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
                             </span>
 
                             <span className="text-[8px] text-slate-700">
-                              {observation.sourcePostIds.length}{" "}
-                              {observation.sourcePostIds.length === 1
+                              {signal.sourcePostIds.length}{" "}
+                              {signal.sourcePostIds.length === 1
                                 ? "post"
                                 : "posts"}
                             </span>
                           </summary>
 
                           <div className="space-y-2 border-t border-white/[0.04] px-3 py-3">
-                            {observation.sourcePostIds.map((sourcePostId) => {
+                            {signal.sourcePostIds.map((sourcePostId) => {
                               const sourcePost = creator.posts.find(
                                 (post) => post.id === sourcePostId
                               );
@@ -980,26 +993,38 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
 
                                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] text-slate-700">
                                         <span>
-                                          Views {sourcePost.views !== null
-                                            ? sourcePost.views.toLocaleString("en-IN")
+                                          Views{" "}
+                                          {sourcePost.views !== null
+                                            ? sourcePost.views.toLocaleString(
+                                                "en-IN"
+                                              )
                                             : "—"}
                                         </span>
 
                                         <span>
-                                          Likes {sourcePost.likes !== null
-                                            ? sourcePost.likes.toLocaleString("en-IN")
+                                          Likes{" "}
+                                          {sourcePost.likes !== null
+                                            ? sourcePost.likes.toLocaleString(
+                                                "en-IN"
+                                              )
                                             : "—"}
                                         </span>
 
                                         <span>
-                                          Replies {sourcePost.replies !== null
-                                            ? sourcePost.replies.toLocaleString("en-IN")
+                                          Replies{" "}
+                                          {sourcePost.replies !== null
+                                            ? sourcePost.replies.toLocaleString(
+                                                "en-IN"
+                                              )
                                             : "—"}
                                         </span>
 
                                         <span>
-                                          Reposts {sourcePost.reposts !== null
-                                            ? sourcePost.reposts.toLocaleString("en-IN")
+                                          Reposts{" "}
+                                          {sourcePost.reposts !== null
+                                            ? sourcePost.reposts.toLocaleString(
+                                                "en-IN"
+                                              )
                                             : "—"}
                                         </span>
                                       </div>
@@ -1983,6 +2008,45 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
         </div>
       </main>
     </AppLayout>
+  );
+}
+
+function SignalBadge({
+  level,
+}: {
+  level:
+    | "none"
+    | "insufficient"
+    | "potential"
+    | "emerging"
+    | "repeated";
+}) {
+  const styles = {
+    none: "border-white/[0.06] bg-white/[0.02] text-slate-600",
+    insufficient:
+      "border-amber-400/[0.12] bg-amber-400/[0.04] text-amber-300/70",
+    potential:
+      "border-sky-400/[0.12] bg-sky-400/[0.04] text-sky-300/70",
+    emerging:
+      "border-emerald-400/[0.12] bg-emerald-400/[0.04] text-emerald-300/70",
+    repeated:
+      "border-violet-400/[0.12] bg-violet-400/[0.04] text-violet-300/70",
+  } as const;
+
+  const labels = {
+    none: "No data",
+    insufficient: "Insufficient",
+    potential: "Potential",
+    emerging: "Emerging",
+    repeated: "Repeated",
+  } as const;
+
+  return (
+    <span
+      className={`rounded-full border px-2 py-1 text-[8px] font-medium uppercase tracking-[0.08em] ${styles[level]}`}
+    >
+      {labels[level]}
+    </span>
   );
 }
 
