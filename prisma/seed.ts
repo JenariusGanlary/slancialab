@@ -100,52 +100,19 @@ const strategies = [
   },
 ];
 
-const creators = [
-  {
-    name: "[Placeholder] Solo SaaS Builder",
-    handle: "@example_handle_1",
-    niche: "Indie SaaS",
-    notes:
-      "PLACEHOLDER — replace with a real creator you've actually studied. Example pattern: posts a daily build-in-public update, mixes short wins with occasional longer threads breaking down a specific decision.",
-    posts: [
-      { patternTag: "Short daily update, real numbers, ~150 chars" },
-      { patternTag: "Weekly long-form thread, one lesson per thread" },
-      { patternTag: "Screenshot-led post, one sentence of context" },
-    ],
-  },
-  {
-    name: "[Placeholder] Content Creator Example",
-    handle: "@example_handle_2",
-    niche: "Content Creator",
-    notes:
-      "PLACEHOLDER — replace with a real creator. Example pattern: leans on curiosity-gap hooks in the first line, frequently uses numbered lists for tactical advice.",
-    posts: [
-      { patternTag: "Curiosity-gap hook opener, question-based" },
-      { patternTag: "Numbered list, 5-7 items, one line each" },
-    ],
-  },
-  {
-    name: "[Placeholder] Contrarian Voice",
-    handle: "@example_handle_3",
-    niche: "Content Creator",
-    notes:
-      "PLACEHOLDER — replace with a real creator. Example pattern: weekly contrarian take against common wisdom, reasoned argument rather than outrage-bait.",
-    posts: [
-      { patternTag: "Contrarian take + reasoned argument, ~280 chars" },
-      { patternTag: "Reply-first engagement on bigger accounts before own posts" },
-    ],
-  },
-];
-
 async function main() {
   for (const strategy of strategies) {
     const existing = await prisma.strategy.findFirst({
-      where: { title: strategy.title },
+      where: {
+        title: strategy.title,
+      },
     });
 
     if (existing) {
       await prisma.strategy.update({
-        where: { id: existing.id },
+        where: {
+          id: existing.id,
+        },
         data: strategy,
       });
     } else {
@@ -155,31 +122,18 @@ async function main() {
     }
   }
 
-  console.log(`Upserted ${strategies.length} strategies (existing ones preserved).`);
+  console.log(
+    `Upserted ${strategies.length} strategies.`
+  );
 
-  await prisma.creatorPost.deleteMany({});
-  await prisma.creator.deleteMany({});
-
-  for (const creator of creators) {
-    await prisma.creator.create({
-      data: {
-        name: creator.name,
-        handle: creator.handle,
-        niche: creator.niche,
-        notes: creator.notes,
-        posts: {
-          create: creator.posts,
-        },
-      },
-    });
-  }
-
-  console.log(`Seeded ${creators.length} creators.`);
+  console.log(
+    "Creator and CreatorPost data were not modified."
+  );
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {

@@ -26,7 +26,10 @@ import {
   Tone,
 } from "@prisma/client";
 import { AppLayout } from "../../components/AppLayout";
-import { aggregateCreatorPostPatterns } from "@/lib/creator-intelligence";
+import {
+  aggregatePatterns,
+  DEFAULT_PATTERN_DIMENSIONS,
+} from "@/lib/pattern-aggregation";
 
 type CreatorPageProps = {
   params: Promise<{
@@ -182,43 +185,6 @@ function formatDateTimeLocal(value: Date | null | undefined) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function buildStrategyResearchHref({
-  creatorId,
-  creatorName,
-  dimension,
-  pattern,
-}: {
-  creatorId: string;
-  creatorName: string;
-  dimension: string;
-  pattern: {
-    value: string;
-    signalLevel: string;
-    medianLiftPercent: number | null;
-    postCount: number;
-    postsWithViews: number;
-    evidenceLabel: string;
-  };
-}) {
-  const params = new URLSearchParams({
-    research: "1",
-    researchCreatorId: creatorId,
-    researchCreatorName: creatorName,
-    researchDimension: dimension,
-    researchPattern: pattern.value,
-    researchSignal: pattern.signalLevel,
-    researchPostCount: String(pattern.postCount),
-    researchMeasuredCount: String(pattern.postsWithViews),
-    researchEvidence: pattern.evidenceLabel,
-  });
-
-  if (pattern.medianLiftPercent !== null) {
-    params.set("researchLift", String(pattern.medianLiftPercent));
-  }
-
-  return `/strategies?${params.toString()}`;
-}
-
 export default async function CreatorPage({ params }: CreatorPageProps) {
   const { creatorId } = await params;
 
@@ -237,6 +203,128 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
 
   if (!creator) {
     notFound();
+  }
+
+  async function updateCreator(formData: FormData) {
+    "use server";
+
+    const name = String(formData.get("name") ?? "").trim();
+    const handle = String(formData.get("handle") ?? "")
+      .trim()
+      .replace(/^@/, "");
+    const niche = String(formData.get("niche") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim();
+
+    if (!name || !handle || !niche) {
+      return;
+    }
+
+    const existingCreator = await prisma.creator.findUnique({
+      where: {
+        id: creatorId,
+      },
+    });
+
+    if (!existingCreator) {
+      notFound();
+    }
+
+    await prisma.creator.update({
+      where: {
+        id: creatorId,
+      },
+      data: {
+        name,
+        handle,
+        niche,
+        notes,
+      },
+    });
+
+    redirect(`/creators/${creatorId}`);
+  }
+
+  async function deleteCreator(formData: FormData) {
+    "use server";
+
+    const confirmation = String(formData.get("confirmation") ?? "")
+      .trim()
+      .replace(/^@/, "");
+
+    const existingCreator = await prisma.creator.findUnique({
+      where: {
+        id: creatorId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingCreator) {
+      return;
+    }
+
+    const creatorRecord = await prisma.creator.findUnique({
+      where: {
+        id: creatorId,
+      },
+      select: {
+        handle: true,
+      },
+    });
+
+    if (
+      !creatorRecord ||
+      confirmation !== creatorRecord.handle.replace(/^@/, "")
+    ) {
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const findings = await tx.researchFinding.findMany({
+        where: {
+          creatorId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const findingIds = findings.map((finding) => finding.id);
+
+      if (findingIds.length > 0) {
+        await tx.experiment.updateMany({
+          where: {
+            researchFindingId: {
+              in: findingIds,
+            },
+          },
+          data: {
+            researchFindingId: null,
+          },
+        });
+      }
+
+      await tx.researchFinding.deleteMany({
+        where: {
+          creatorId,
+        },
+      });
+
+      await tx.creatorPost.deleteMany({
+        where: {
+          creatorId,
+        },
+      });
+
+      await tx.creator.delete({
+        where: {
+          id: creatorId,
+        },
+      });
+    });
+
+    redirect("/creators");
   }
 
   async function addPost(formData: FormData) {
@@ -489,22 +577,15 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
       ? Math.round(totalViews / postsWithViews.length)
       : null;
 
-  const patternIntelligence = aggregateCreatorPostPatterns(
+  const patternIntelligence = aggregatePatterns(
     creator.posts.map((post) => ({
       id: post.id,
-      creatorId: post.creatorId,
       views: post.views,
       hookType: post.hookType,
       structure: post.structure,
-      topic: post.topic,
-      tone: post.tone,
-      format: post.format,
-      ctaType: post.ctaType,
       contentStyle: post.contentStyle,
-      stance: post.stance,
-      sentenceType: post.sentenceType,
-      personalization: post.personalization,
-    }))
+    })),
+    DEFAULT_PATTERN_DIMENSIONS
   );
 
   return (
@@ -554,15 +635,116 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
                 </div>
               </div>
 
-              <a
-                href={xUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-[10px] font-medium text-slate-400 transition-all hover:border-white/[0.14] hover:bg-white/[0.04] hover:text-white"
-              >
-                View on X
-                <ArrowUpRight size={12} />
-              </a>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start">
+                <a
+                  href={xUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-[10px] font-medium text-slate-400 transition-all hover:border-white/[0.14] hover:bg-white/[0.04] hover:text-white"
+                >
+                  View on X
+                  <ArrowUpRight size={12} />
+                </a>
+
+                <details className="relative">
+                  <summary className="flex cursor-pointer list-none items-center justify-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-[10px] font-medium text-slate-400 transition-all hover:border-white/[0.14] hover:bg-white/[0.04] hover:text-white">
+                    <Pencil size={11} />
+                    Manage
+                  </summary>
+
+                  <div className="absolute right-0 top-11 z-40 w-[340px] rounded-2xl border border-white/[0.08] bg-[#0d0f16] p-5 shadow-2xl shadow-black/50">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">
+                        Edit creator
+                      </h3>
+
+                      <p className="mt-1 text-[10px] leading-5 text-slate-600">
+                        Update the creator profile used for your research.
+                      </p>
+                    </div>
+
+                    <form action={updateCreator} className="mt-5 space-y-3">
+                      <Field
+                        id="creator-name"
+                        name="name"
+                        label="Name"
+                        defaultValue={creator.name}
+                      />
+
+                      <Field
+                        id="creator-handle"
+                        name="handle"
+                        label="X handle"
+                        defaultValue={creator.handle.replace(/^@/, "")}
+                        placeholder="username"
+                      />
+
+                      <Field
+                        id="creator-niche"
+                        name="niche"
+                        label="Niche"
+                        defaultValue={creator.niche}
+                        placeholder="e.g. SaaS, AI, fitness"
+                      />
+
+                      <div>
+                        <label
+                          htmlFor="creator-notes"
+                          className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+                        >
+                          Notes
+                        </label>
+
+                        <textarea
+                          id="creator-notes"
+                          name="notes"
+                          rows={3}
+                          defaultValue={creator.notes}
+                          className="w-full resize-none rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs leading-5 text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-violet-500 text-[11px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.98]"
+                      >
+                        Save creator changes
+                        <ArrowUpRight size={12} />
+                      </button>
+                    </form>
+
+                    <div className="my-5 border-t border-white/[0.06]" />
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-300">
+                        Delete creator
+                      </h3>
+
+                      <p className="mt-1 text-[10px] leading-5 text-slate-600">
+                        This removes this creator and their studied posts and
+                        research findings. Existing experiments are preserved,
+                        but their research-finding link will be cleared.
+                      </p>
+                    </div>
+
+                    <form action={deleteCreator} className="mt-4 space-y-3">
+                      <Field
+                        id="delete-creator-confirmation"
+                        name="confirmation"
+                        label={`Type ${creator.handle.replace(/^@/, "")} to confirm`}
+                        placeholder={creator.handle.replace(/^@/, "")}
+                      />
+
+                      <button
+                        type="submit"
+                        className="flex h-9 w-full items-center justify-center rounded-lg border border-red-400/20 bg-red-400/[0.06] text-[11px] font-semibold text-red-300 transition-all hover:border-red-400/30 hover:bg-red-400/[0.1]"
+                      >
+                        Delete creator
+                      </button>
+                    </form>
+                  </div>
+                </details>
+              </div>
             </div>
           </section>
 
@@ -693,292 +875,153 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
                 <BarChart3 size={14} className="text-sky-400" />
 
                 <h2 className="text-sm font-semibold text-white">
-                  Pattern intelligence
+                  What we observed
                 </h2>
               </div>
 
               <p className="mt-1 max-w-2xl text-[10px] leading-5 text-slate-600">
-                Structured patterns aggregated from the posts you have studied.
-                Performance is descriptive only and does not establish causation.
+                Simple patterns from the posts you have studied. These are
+                observations, not predictions or guarantees.
               </p>
             </div>
 
             {patternIntelligence.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/[0.07] bg-white/[0.01] px-5 py-8 text-center">
                 <p className="text-xs text-slate-600">
-                  Classify more studied posts to build pattern intelligence.
+                  Classify more studied posts to see patterns here.
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {patternIntelligence.map((dimension) => (
+              <div className="space-y-4">
+                {patternIntelligence.map((observation) => (
                   <div
-                    key={dimension.key}
+                    key={`${observation.dimension}-${observation.value}`}
                     className="rounded-2xl border border-white/[0.06] bg-white/[0.015] p-4"
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <h3 className="text-[11px] font-semibold text-slate-300">
-                          {dimension.label}
+                          {observation.dimensionLabel}
                         </h3>
 
                         <p className="mt-1 text-[9px] text-slate-700">
-                          Grouped by structured analysis
+                          {observation.count}{" "}
+                          {observation.count === 1 ? "post" : "posts"} studied
                         </p>
                       </div>
-
-                      <span className="text-[9px] text-slate-700">
-                        {dimension.patterns.length}{" "}
-                        {dimension.patterns.length === 1
-                          ? "pattern"
-                          : "patterns"}
-                      </span>
                     </div>
 
-                    <div className="mt-3 overflow-x-auto">
-                      <div className="min-w-[620px]">
-                        <div className="grid grid-cols-[1.4fr_0.45fr_0.65fr_0.8fr_0.8fr_0.85fr_1.25fr] gap-3 border-b border-white/[0.05] px-3 pb-2">
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Pattern
-                          </span>
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-300">
+                              {observation.value}
+                            </p>
 
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Posts
-                          </span>
+                            <p className="mt-1 text-[9px] leading-5 text-slate-600">
+                              {observation.count}{" "}
+                              {observation.count === 1 ? "post" : "posts"}
+                              {" · "}
+                              {observation.availableViews}{" "}
+                              {observation.availableViews === 1
+                                ? "with performance data"
+                                : "with performance data"}
+                            </p>
+                          </div>
 
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Measured
-                          </span>
+                          <div className="shrink-0 rounded-lg border border-sky-400/[0.08] bg-sky-400/[0.025] px-3 py-2 sm:min-w-[150px]">
+                            <p className="text-[8px] uppercase tracking-[0.1em] text-slate-700">
+                              Typical reach
+                            </p>
 
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Avg. views
-                          </span>
-
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Median
-                          </span>
-
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Lift
-                          </span>
-
-                          <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
-                            Signal
-                          </span>
+                            <p className="mt-1 text-sm font-semibold text-slate-300">
+                              {observation.medianViews !== null
+                                ? `~${observation.medianViews.toLocaleString("en-IN")} views`
+                                : "Not enough data"}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="divide-y divide-white/[0.04]">
-                          {dimension.patterns.map((pattern) => (
-                            <div
-                              key={`${dimension.key}-${pattern.value}`}
-                              className="grid grid-cols-[1.4fr_0.45fr_0.65fr_0.8fr_0.8fr_0.85fr_1.25fr] items-center gap-3 px-3 py-3"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-[10px] font-medium text-slate-300">
-                                  {pattern.value}
-                                </p>
+                        <details className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.01]">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+                            <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-600">
+                              View source posts
+                            </span>
 
-                                <p className="mt-1 text-[8px] text-slate-700">
-                                  {pattern.sourcePostIds.length} source{" "}
-                                  {pattern.sourcePostIds.length === 1
-                                    ? "post"
-                                    : "posts"}
-                                </p>
-                              </div>
+                            <span className="text-[8px] text-slate-700">
+                              {observation.sourcePostIds.length}{" "}
+                              {observation.sourcePostIds.length === 1
+                                ? "post"
+                                : "posts"}
+                            </span>
+                          </summary>
 
-                              <span className="text-[10px] text-slate-400">
-                                {pattern.postCount}
-                              </span>
+                          <div className="space-y-2 border-t border-white/[0.04] px-3 py-3">
+                            {observation.sourcePostIds.map((sourcePostId) => {
+                              const sourcePost = creator.posts.find(
+                                (post) => post.id === sourcePostId
+                              );
 
-                              <div className="min-w-0">
-                                <span className="text-[10px] text-slate-400">
-                                  {pattern.postsWithViews}
-                                </span>
+                              if (!sourcePost) {
+                                return null;
+                              }
 
-                                <p className="mt-1 text-[8px] text-slate-700">
-                                  {pattern.performanceCoverage}% coverage
-                                </p>
-                              </div>
-
-                              <span className="text-[10px] font-medium text-slate-300">
-                                {pattern.averageViews !== null
-                                  ? pattern.averageViews.toLocaleString("en-IN")
-                                  : "—"}
-                              </span>
-
-                              <div className="min-w-0">
-                                <span className="text-[10px] font-medium text-slate-300">
-                                  {pattern.medianViews !== null
-                                    ? pattern.medianViews.toLocaleString("en-IN")
-                                    : "—"}
-                                </span>
-
-                                {pattern.baselineMedianViews !== null && (
-                                  <p className="mt-1 text-[8px] text-slate-700">
-                                    Baseline {pattern.baselineMedianViews.toLocaleString("en-IN")}
-                                  </p>
-                                )}
-                              </div>
-
-                              <div className="min-w-0">
-                                {pattern.medianLiftPercent !== null ? (
-                                  <span
-                                    className={`text-[10px] font-semibold ${
-                                      pattern.medianLiftPercent > 0
-                                        ? "text-emerald-300"
-                                        : pattern.medianLiftPercent < 0
-                                          ? "text-rose-300"
-                                          : "text-slate-500"
-                                    }`}
-                                  >
-                                    {pattern.medianLiftPercent > 0 ? "+" : ""}
-                                    {pattern.medianLiftPercent}%
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-slate-700">
-                                    —
-                                  </span>
-                                )}
-
-                                <p className="mt-1 text-[8px] text-slate-700">
-                                  vs baseline
-                                </p>
-                              </div>
-
-                              <div className="min-w-0">
-                                <span
-                                  className={`inline-flex max-w-full rounded-md border px-2 py-1 text-[8px] font-medium ${
-                                    pattern.signalLevel === "repeated"
-                                      ? "border-emerald-400/10 bg-emerald-400/[0.05] text-emerald-300/80"
-                                      : pattern.signalLevel === "emerging"
-                                        ? "border-sky-400/10 bg-sky-400/[0.05] text-sky-300/80"
-                                        : pattern.signalLevel === "potential"
-                                          ? "border-amber-400/10 bg-amber-400/[0.05] text-amber-300/80"
-                                          : "border-white/[0.06] bg-white/[0.02] text-slate-600"
-                                  }`}
-                                  title={pattern.signalLabel}
+                              return (
+                                <div
+                                  key={sourcePost.id}
+                                  className="rounded-lg border border-white/[0.04] bg-white/[0.015] p-3"
                                 >
-                                  {pattern.signalLevel === "repeated"
-                                    ? "Repeated"
-                                    : pattern.signalLevel === "emerging"
-                                      ? "Emerging"
-                                      : pattern.signalLevel === "potential"
-                                        ? "Potential"
-                                        : pattern.signalLevel === "none"
-                                          ? "No signal"
-                                          : "Insufficient"}
-                                </span>
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] leading-5 text-slate-400">
+                                        {sourcePost.content}
+                                      </p>
 
-                                <p className="mt-1 truncate text-[8px] text-slate-700">
-                                  {pattern.evidenceLabel}
-                                </p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] text-slate-700">
+                                        <span>
+                                          Views {sourcePost.views !== null
+                                            ? sourcePost.views.toLocaleString("en-IN")
+                                            : "—"}
+                                        </span>
 
-                                {pattern.signalLevel !== "none" &&
-                                  pattern.signalLevel !== "insufficient" && (
-                                    <Link
-                                      href={buildStrategyResearchHref({
-                                        creatorId: creator.id,
-                                        creatorName: creator.name,
-                                        dimension: dimension.label,
-                                        pattern,
-                                      })}
-                                      className="mt-2 inline-flex items-center gap-1 text-[8px] font-medium text-violet-400/80 transition-colors hover:text-violet-300"
-                                    >
-                                      Test this pattern
-                                      <ArrowUpRight size={9} />
-                                    </Link>
-                                  )}
-                              </div>
+                                        <span>
+                                          Likes {sourcePost.likes !== null
+                                            ? sourcePost.likes.toLocaleString("en-IN")
+                                            : "—"}
+                                        </span>
 
-                              <details className="col-span-7 mt-1 rounded-lg border border-white/[0.05] bg-white/[0.01]">
-                                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
-                                  <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-600">
-                                    View source posts
-                                  </span>
-                                  <span className="text-[8px] text-slate-700">
-                                    {pattern.sourcePostIds.length}{" "}
-                                    {pattern.sourcePostIds.length === 1
-                                      ? "post"
-                                      : "posts"}
-                                  </span>
-                                </summary>
+                                        <span>
+                                          Replies {sourcePost.replies !== null
+                                            ? sourcePost.replies.toLocaleString("en-IN")
+                                            : "—"}
+                                        </span>
 
-                                <div className="space-y-2 border-t border-white/[0.04] px-3 py-3">
-                                  {pattern.sourcePostIds.map((sourcePostId) => {
-                                    const sourcePost = creator.posts.find(
-                                      (post) => post.id === sourcePostId
-                                    );
-
-                                    if (!sourcePost) {
-                                      return null;
-                                    }
-
-                                    return (
-                                      <div
-                                        key={sourcePost.id}
-                                        className="rounded-lg border border-white/[0.04] bg-white/[0.015] p-3"
-                                      >
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                          <div className="min-w-0">
-                                            <p className="text-[10px] leading-5 text-slate-400">
-                                              {sourcePost.content}
-                                            </p>
-
-                                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] text-slate-700">
-                                              <span>
-                                                Views {sourcePost.views !== null
-                                                  ? sourcePost.views.toLocaleString("en-IN")
-                                                  : "—"}
-                                              </span>
-                                              <span>
-                                                Likes {sourcePost.likes !== null
-                                                  ? sourcePost.likes.toLocaleString("en-IN")
-                                                  : "—"}
-                                              </span>
-                                              <span>
-                                                Replies {sourcePost.replies !== null
-                                                  ? sourcePost.replies.toLocaleString("en-IN")
-                                                  : "—"}
-                                              </span>
-                                              <span>
-                                                Reposts {sourcePost.reposts !== null
-                                                  ? sourcePost.reposts.toLocaleString("en-IN")
-                                                  : "—"}
-                                              </span>
-                                            </div>
-
-                                            {sourcePost.publishedAt && (
-                                              <p className="mt-1 text-[8px] text-slate-700">
-                                                Published{" "}
-                                                {sourcePost.publishedAt.toLocaleDateString("en-IN", {
-                                                  day: "numeric",
-                                                  month: "short",
-                                                  year: "numeric",
-                                                })}
-                                              </p>
-                                            )}
-                                          </div>
-
-                                          {sourcePost.postUrl && (
-                                            <a
-                                              href={sourcePost.postUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="inline-flex shrink-0 items-center gap-1 text-[8px] font-medium text-slate-600 transition-colors hover:text-violet-400"
-                                            >
-                                              Open post
-                                              <ArrowUpRight size={10} />
-                                            </a>
-                                          )}
-                                        </div>
+                                        <span>
+                                          Reposts {sourcePost.reposts !== null
+                                            ? sourcePost.reposts.toLocaleString("en-IN")
+                                            : "—"}
+                                        </span>
                                       </div>
-                                    );
-                                  })}
+                                    </div>
+
+                                    {sourcePost.postUrl && (
+                                      <a
+                                        href={sourcePost.postUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex shrink-0 items-center gap-1 text-[8px] font-medium text-slate-600 transition-colors hover:text-violet-400"
+                                      >
+                                        Open post
+                                        <ArrowUpRight size={10} />
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
-                              </details>
-                            </div>
-                          ))}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        </details>
                       </div>
                     </div>
                   </div>
