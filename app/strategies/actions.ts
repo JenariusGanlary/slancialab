@@ -2,6 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
 
@@ -41,6 +42,28 @@ export async function startTracking(formData: FormData) {
     redirect("/strategies");
   }
 
+  /*
+   * Prevent duplicate active experiments for the same
+   * user + strategy.
+   *
+   * Completed/paused experiments remain valid history and
+   * do not prevent the user from starting the strategy again.
+   */
+  const existing = await prisma.experiment.findFirst({
+    where: {
+      userId: user.id,
+      strategyId,
+      status: "active",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existing) {
+    redirect(`/experiments/${existing.id}`);
+  }
+
   const researchCreatorId = formData.get("researchCreatorId");
   const researchDimension = formData.get("researchDimension");
   const researchPattern = formData.get("researchPattern");
@@ -48,7 +71,6 @@ export async function startTracking(formData: FormData) {
   const researchPostCount = formData.get("researchPostCount");
   const researchMeasuredCount = formData.get("researchMeasuredCount");
   const researchEvidence = formData.get("researchEvidence");
-  const researchLift = formData.get("researchLift");
 
   const hasResearchContext =
     typeof researchCreatorId === "string" &&
@@ -66,19 +88,17 @@ export async function startTracking(formData: FormData) {
     typeof researchEvidence === "string" &&
     researchEvidence.length > 0;
 
-  const existing = await prisma.experiment.findFirst({
-    where: {
-      userId: user.id,
-      strategyId,
-      status: "active",
-    },
-  });
-
-  if (!existing) {
+  /*
+   * Create the research finding and experiment together.
+   *
+   * This prevents an orphan ResearchFinding from being created
+   * if the experiment creation fails.
+   */
+  const experiment = await prisma.$transaction(async (tx) => {
     let researchFindingId: string | undefined;
 
     if (hasResearchContext) {
-      const creator = await prisma.creator.findUnique({
+      const creator = await tx.creator.findUnique({
         where: {
           id: researchCreatorId,
         },
@@ -89,18 +109,16 @@ export async function startTracking(formData: FormData) {
 
       if (creator) {
         const postCount = Number.parseInt(researchPostCount, 10);
-        const measuredCount = Number.parseInt(researchMeasuredCount, 10);
-
-        const parsedLift =
-          typeof researchLift === "string" && researchLift.length > 0
-            ? Number.parseInt(researchLift, 10)
-            : null;
+        const measuredCount = Number.parseInt(
+          researchMeasuredCount,
+          10
+        );
 
         if (
           Number.isFinite(postCount) &&
           Number.isFinite(measuredCount)
         ) {
-          const researchFinding = await prisma.researchFinding.create({
+          const researchFinding = await tx.researchFinding.create({
             data: {
               creatorId: creator.id,
               dimension: researchDimension,
@@ -109,10 +127,6 @@ export async function startTracking(formData: FormData) {
               postCount,
               measuredCount,
               evidenceLabel: researchEvidence,
-              medianLiftPercent:
-                parsedLift !== null && Number.isFinite(parsedLift)
-                  ? parsedLift
-                  : null,
             },
             select: {
               id: true,
@@ -124,15 +138,112 @@ export async function startTracking(formData: FormData) {
       }
     }
 
-    await prisma.experiment.create({
+    return tx.experiment.create({
       data: {
         userId: user.id,
         strategyId,
         researchFindingId,
         status: "active",
       },
+      select: {
+        id: true,
+      },
     });
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/strategies");
+  revalidatePath("/experiments");
+
+  redirect(`/experiments/${experiment.id}`);
+}
+
+/**
+ * Delete one experiment belonging to the currently authenticated user.
+ *
+ * IMPORTANT:
+ * This does NOT delete:
+ * - User
+ * - Strategy
+ * - Creator
+ * - CreatorPost
+ * - ResearchFinding
+ * - Any other Experiment
+ *
+ * It only removes:
+ * - the selected Experiment
+ * - CheckIns belonging to that Experiment
+ */
+export async function deleteExperiment(formData: FormData) {
+  const { userId } = await auth();
+
+  if (!userId) {
+    redirect("/");
   }
 
-  redirect("/dashboard");
+  const experimentId = formData.get("experimentId");
+
+  if (typeof experimentId !== "string" || !experimentId) {
+    redirect("/experiments");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      clerkId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!user) {
+    redirect("/");
+  }
+
+  /*
+   * Ownership check.
+   *
+   * The experiment must belong to the authenticated user.
+   */
+  const experiment = await prisma.experiment.findFirst({
+    where: {
+      id: experimentId,
+      userId: user.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!experiment) {
+    redirect("/experiments");
+  }
+
+  /*
+   * Delete only the selected experiment and its check-ins.
+   *
+   * We intentionally do NOT delete the ResearchFinding because
+   * research history is valuable data and may be referenced by
+   * other future records.
+   */
+  await prisma.$transaction(async (tx) => {
+    await tx.checkIn.deleteMany({
+      where: {
+        experimentId: experiment.id,
+      },
+    });
+
+    await tx.experiment.delete({
+      where: {
+        id: experiment.id,
+      },
+    });
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/strategies");
+  revalidatePath("/experiments");
+  revalidatePath(`/experiments/${experiment.id}`);
+
+  redirect("/experiments");
 }

@@ -10,6 +10,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { findBestStrategyForResearch } from "@/lib/strategy-matching";
 import { startTracking } from "./actions";
 import { AppLayout } from "../components/AppLayout";
 
@@ -23,6 +24,38 @@ function getSearchParam(
 ) {
   const value = params[key];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function getSignalClasses(signal: string | undefined) {
+  switch (signal) {
+    case "repeated":
+      return {
+        badge:
+          "border-violet-400/15 bg-violet-400/[0.06] text-violet-300",
+        dot: "bg-violet-400",
+      };
+
+    case "emerging":
+      return {
+        badge:
+          "border-amber-400/15 bg-amber-400/[0.06] text-amber-300",
+        dot: "bg-amber-400",
+      };
+
+    case "potential":
+      return {
+        badge:
+          "border-sky-400/15 bg-sky-400/[0.06] text-sky-300",
+        dot: "bg-sky-400",
+      };
+
+    default:
+      return {
+        badge:
+          "border-white/[0.07] bg-white/[0.02] text-slate-400",
+        dot: "bg-slate-500",
+      };
+  }
 }
 
 export default async function StrategiesPage({
@@ -69,60 +102,100 @@ export default async function StrategiesPage({
     "researchEvidence"
   );
 
-  const researchLift = getSearchParam(
-    resolvedSearchParams,
-    "researchLift"
-  );
-
   const researchDimension = getSearchParam(
     resolvedSearchParams,
     "researchDimension"
   );
 
   const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
+    where: {
+      clerkId: userId,
+    },
   });
 
   if (!user || user.niche.length === 0 || !user.followerStage) {
     redirect("/onboarding");
   }
 
-  const [strategies, activeExperiments, totalExperiments, researchCreator] =
-    await Promise.all([
-      prisma.strategy.findMany({
-        where: {
-          nicheTags: { hasSome: user.niche },
-          stageTags: { has: user.followerStage },
+  const [
+    profileStrategies,
+    researchCandidateStrategies,
+    activeExperiments,
+    totalExperiments,
+    researchCreator,
+  ] = await Promise.all([
+    /*
+     * Normal strategy library:
+     * only strategies matching the user's niche AND follower stage.
+     */
+    prisma.strategy.findMany({
+      where: {
+        nicheTags: {
+          hasSome: user.niche,
         },
-        orderBy: { createdAt: "asc" },
-      }),
+        stageTags: {
+          has: user.followerStage,
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    }),
 
-      prisma.experiment.findMany({
-        where: {
-          userId: user.id,
-          status: "active",
-        },
-        select: {
-          strategyId: true,
-        },
-      }),
-
-      prisma.experiment.count({
-        where: {
-          userId: user.id,
-        },
-      }),
-
-      researchEnabled && researchCreatorId
-        ? prisma.creator.findUnique({
-            where: { id: researchCreatorId },
-            select: {
-              name: true,
-              handle: true,
+    /*
+     * Research strategy pool:
+     *
+     * When the user arrives from Creator Intelligence, the research
+     * pattern is the primary signal. We therefore allow strategies
+     * matching the user's niche even if their stageTags do not include
+     * the current follower stage.
+     *
+     * This prevents a valid research-derived strategy from being
+     * filtered out before the matcher sees it.
+     *
+     * This is READ-ONLY. No database records are modified.
+     */
+    researchEnabled && researchPattern
+      ? prisma.strategy.findMany({
+          where: {
+            nicheTags: {
+              hasSome: user.niche,
             },
-          })
-        : Promise.resolve(null),
-    ]);
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        })
+      : Promise.resolve([]),
+
+    prisma.experiment.findMany({
+      where: {
+        userId: user.id,
+        status: "active",
+      },
+      select: {
+        strategyId: true,
+      },
+    }),
+
+    prisma.experiment.count({
+      where: {
+        userId: user.id,
+      },
+    }),
+
+    researchEnabled && researchCreatorId
+      ? prisma.creator.findUnique({
+          where: {
+            id: researchCreatorId,
+          },
+          select: {
+            name: true,
+            handle: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
 
   const trackedStrategyIds = new Set(
     activeExperiments.map((experiment) => experiment.strategyId)
@@ -140,6 +213,60 @@ export default async function StrategiesPage({
         researchMeasuredCount &&
         researchEvidence
     );
+
+  /*
+   * IMPORTANT:
+   *
+   * In research mode, the matcher receives the research candidate pool,
+   * not only the profile-filtered strategies.
+   *
+   * This allows:
+   *
+   * Contrarian research
+   *       ↓
+   * Contrarian Take Fridays
+   *
+   * even when that strategy's stageTags do not include the user's
+   * current follower stage.
+   */
+  const strategyCandidates = hasResearchContext
+    ? researchCandidateStrategies
+    : profileStrategies;
+
+  const recommendedStrategy =
+    hasResearchContext && researchPattern
+      ? findBestStrategyForResearch(
+          strategyCandidates.map((strategy) => ({
+            id: strategy.id,
+            title: strategy.title,
+            description: strategy.description,
+            nicheTags: strategy.nicheTags,
+            stageTags: strategy.stageTags,
+          })),
+          {
+            pattern: researchPattern,
+            dimension: researchDimension,
+          }
+        )
+      : null;
+
+  const recommendedStrategyId =
+    recommendedStrategy?.strategy.id ?? null;
+
+  /*
+   * Normal library remains profile-filtered.
+   *
+   * If the research recommendation is not already in the normal
+   * profile library, it is simply shown as the research recommendation
+   * above and is not duplicated below.
+   */
+  const otherStrategies = recommendedStrategyId
+    ? profileStrategies.filter(
+        (strategy) => strategy.id !== recommendedStrategyId
+      )
+    : profileStrategies;
+
+  const signalClasses = getSignalClasses(researchSignal);
 
   return (
     <AppLayout>
@@ -174,7 +301,9 @@ export default async function StrategiesPage({
                 <Target size={12} className="text-violet-400" />
 
                 <span className="text-[10px] text-slate-500">
-                  Matched to your profile
+                  {hasResearchContext
+                    ? "Matched to your research"
+                    : "Matched to your profile"}
                 </span>
               </div>
             </div>
@@ -225,7 +354,10 @@ export default async function StrategiesPage({
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[0.07]">
-                      <Sparkles size={17} className="text-violet-400" />
+                      <Sparkles
+                        size={17}
+                        className="text-violet-400"
+                      />
                     </div>
 
                     <div>
@@ -241,15 +373,20 @@ export default async function StrategiesPage({
                       </h2>
 
                       <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-                        You arrived here from Creator Intelligence. Use this
-                        finding as research context when choosing the strategy
-                        you want to test on your own account.
+                        You arrived here from Creator Intelligence. Use
+                        this finding as research context when choosing the
+                        strategy you want to test on your own account.
                       </p>
                     </div>
                   </div>
 
-                  <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-emerald-400/10 bg-emerald-400/[0.05] px-2.5 py-1.5 text-[9px] font-medium capitalize text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-2.5 py-1.5 text-[9px] font-medium capitalize ${signalClasses.badge}`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${signalClasses.dot}`}
+                    />
+
                     {researchSignal ?? "research"} signal
                   </span>
                 </div>
@@ -283,7 +420,6 @@ export default async function StrategiesPage({
 
                     <div className="mt-1 text-xs font-medium capitalize text-slate-300">
                       {researchSignal ?? "—"}
-                      {researchLift ? ` · ${researchLift}% lift` : ""}
                     </div>
                   </div>
 
@@ -300,11 +436,150 @@ export default async function StrategiesPage({
                   </div>
                 </div>
 
-                {researchEvidence && (
-                  <div className="mt-3 text-[10px] text-slate-600">
-                    {researchEvidence}
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-slate-600">
+                  {researchEvidence && (
+                    <span>{researchEvidence}</span>
+                  )}
+
+                  {researchDimension && (
+                    <span>
+                      Dimension:{" "}
+                      <span className="text-slate-500">
+                        {researchDimension}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Research recommendation */}
+          {hasResearchContext && recommendedStrategy && (
+            <section className="relative mb-9 overflow-hidden rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.025]">
+              <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-emerald-400/[0.05] blur-[80px]" />
+
+              <div className="relative p-5 sm:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06]">
+                      <FlaskConical
+                        size={17}
+                        className="text-emerald-400"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-emerald-400/70">
+                        Recommended experiment
+                      </div>
+
+                      <h2
+                        className="text-xl font-semibold tracking-[-0.025em] text-white"
+                        style={{ fontFamily: "Fraunces, serif" }}
+                      >
+                        {recommendedStrategy.strategy.title}
+                      </h2>
+
+                      <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                        {recommendedStrategy.reason}
+                      </p>
+
+                      <p className="mt-3 max-w-2xl text-[10px] leading-5 text-slate-600">
+                        The match is based on the observed research
+                        pattern. It is a suggested test, not a claim that
+                        the strategy will work for your audience.
+                      </p>
+                    </div>
                   </div>
-                )}
+
+                  {trackedStrategyIds.has(
+                    recommendedStrategy.strategy.id
+                  ) ? (
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-emerald-400/15 bg-emerald-400/[0.05] px-5 py-3 text-[10px] font-semibold text-emerald-300 transition-all hover:bg-emerald-400/[0.08]"
+                    >
+                      View experiment
+                      <ArrowRight size={12} />
+                    </Link>
+                  ) : (
+                    <form
+                      action={startTracking}
+                      className="shrink-0"
+                    >
+                      <input
+                        type="hidden"
+                        name="strategyId"
+                        value={recommendedStrategy.strategy.id}
+                      />
+
+                      {researchCreatorId && (
+                        <input
+                          type="hidden"
+                          name="researchCreatorId"
+                          value={researchCreatorId}
+                        />
+                      )}
+
+                      {researchDimension && (
+                        <input
+                          type="hidden"
+                          name="researchDimension"
+                          value={researchDimension}
+                        />
+                      )}
+
+                      {researchPattern && (
+                        <input
+                          type="hidden"
+                          name="researchPattern"
+                          value={researchPattern}
+                        />
+                      )}
+
+                      {researchSignal && (
+                        <input
+                          type="hidden"
+                          name="researchSignal"
+                          value={researchSignal}
+                        />
+                      )}
+
+                      {researchPostCount && (
+                        <input
+                          type="hidden"
+                          name="researchPostCount"
+                          value={researchPostCount}
+                        />
+                      )}
+
+                      {researchMeasuredCount && (
+                        <input
+                          type="hidden"
+                          name="researchMeasuredCount"
+                          value={researchMeasuredCount}
+                        />
+                      )}
+
+                      {researchEvidence && (
+                        <input
+                          type="hidden"
+                          name="researchEvidence"
+                          value={researchEvidence}
+                        />
+                      )}
+
+                      <button
+                        type="submit"
+                        className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 py-3 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99] sm:w-auto"
+                      >
+                        Start this experiment
+                        <ArrowRight size={12} />
+                      </button>
+                    </form>
+                  )}
+                </div>
               </div>
             </section>
           )}
@@ -316,7 +591,10 @@ export default async function StrategiesPage({
 
               <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[0.07]">
-                  <Sparkles size={17} className="text-violet-400" />
+                  <Sparkles
+                    size={17}
+                    className="text-violet-400"
+                  />
                 </div>
 
                 <div className="flex-1">
@@ -332,9 +610,9 @@ export default async function StrategiesPage({
                   </h2>
 
                   <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-                    You don&apos;t need to test everything at once. Start with
-                    one strategy, measure the results, and use what you learn to
-                    decide what to test next.
+                    You don&apos;t need to test everything at once. Start
+                    with one strategy, measure the results, and use what you
+                    learn to decide what to test next.
                   </p>
                 </div>
               </div>
@@ -345,40 +623,50 @@ export default async function StrategiesPage({
           <div className="mb-5 flex items-end justify-between">
             <div>
               <div className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-600">
-                Recommended for you
+                {recommendedStrategy
+                  ? "Other strategies"
+                  : "Recommended for you"}
               </div>
 
               <h2
                 className="mt-1 text-xl font-semibold tracking-[-0.025em] text-white"
                 style={{ fontFamily: "Fraunces, serif" }}
               >
-                Strategies to experiment with
+                {recommendedStrategy
+                  ? "More strategies to experiment with"
+                  : "Strategies to experiment with"}
               </h2>
             </div>
 
             <div className="hidden text-[10px] text-slate-700 sm:block">
-              {strategies.length}{" "}
-              {strategies.length === 1 ? "strategy" : "strategies"} available
+              {otherStrategies.length}{" "}
+              {otherStrategies.length === 1
+                ? "strategy"
+                : "strategies"}{" "}
+              available
             </div>
           </div>
 
           {/* Empty state */}
-          {strategies.length === 0 ? (
+          {otherStrategies.length === 0 ? (
             <div className="rounded-2xl border border-white/[0.06] bg-[#0d0f15] px-6 py-14 text-center">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                <FlaskConical size={18} className="text-slate-600" />
+                <FlaskConical
+                  size={18}
+                  className="text-slate-600"
+                />
               </div>
 
               <h2
                 className="mt-5 text-xl font-semibold text-white"
                 style={{ fontFamily: "Fraunces, serif" }}
               >
-                No matching strategies yet.
+                No other strategies yet.
               </h2>
 
               <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-600">
-                We don&apos;t have strategies matching your current niche and
-                follower stage yet. Check back as the library grows.
+                The research finding above already has the closest matching
+                strategy from your current library.
               </p>
 
               <Link
@@ -391,11 +679,16 @@ export default async function StrategiesPage({
             </div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
-              {strategies.map((strategy) => {
-                const isTracking = trackedStrategyIds.has(strategy.id);
+              {otherStrategies.map((strategy) => {
+                const isTracking = trackedStrategyIds.has(
+                  strategy.id
+                );
 
                 const tags = Array.from(
-                  new Set([...strategy.nicheTags, ...strategy.stageTags])
+                  new Set([
+                    ...strategy.nicheTags,
+                    ...strategy.stageTags,
+                  ])
                 );
 
                 return (
@@ -403,23 +696,13 @@ export default async function StrategiesPage({
                     key={strategy.id}
                     className={`group relative flex flex-col overflow-hidden rounded-xl border bg-[#0d0f15] transition-all ${
                       isTracking
-                        ? "border-emerald-400/10"
+                        ? "border-emerald-400/15"
                         : "border-white/[0.06] hover:border-violet-400/15"
                     }`}
                   >
-                    {/* Top accent */}
-                    <div
-                      className={`absolute left-0 top-0 h-px w-full ${
-                        isTracking
-                          ? "bg-gradient-to-r from-emerald-400/50 via-emerald-400/10 to-transparent"
-                          : "bg-gradient-to-r from-violet-400/40 via-violet-400/10 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
-                      }`}
-                    />
-
                     <div className="flex flex-1 flex-col p-5 sm:p-6">
-                      {/* Card header */}
-                      <div className="mb-5 flex items-start justify-between gap-4">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-400/10 bg-violet-400/[0.05]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/10 bg-violet-400/[0.05]">
                           <FlaskConical
                             size={15}
                             className="text-violet-400"
@@ -428,36 +711,33 @@ export default async function StrategiesPage({
                         </div>
 
                         {isTracking ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/10 bg-emerald-400/[0.05] px-2.5 py-1.5 text-[9px] font-medium text-emerald-400">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1.5 text-[9px] font-medium text-emerald-300">
                             <Check size={10} />
                             Currently tracking
                           </span>
                         ) : (
-                          <span className="rounded-full border border-white/[0.05] bg-white/[0.015] px-2.5 py-1.5 text-[9px] text-slate-700">
+                          <span className="rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[9px] font-medium text-slate-600">
                             Experiment
                           </span>
                         )}
                       </div>
 
-                      {/* Title */}
                       <h3
-                        className="text-xl font-semibold tracking-[-0.025em] text-white"
+                        className="mt-5 text-xl font-semibold tracking-[-0.025em] text-white"
                         style={{ fontFamily: "Fraunces, serif" }}
                       >
                         {strategy.title}
                       </h3>
 
-                      {/* Description */}
                       <p className="mt-2 flex-1 text-xs leading-5 text-slate-500">
                         {strategy.description}
                       </p>
 
-                      {/* Tags */}
                       <div className="mt-5 flex flex-wrap gap-1.5">
                         {tags.map((tag) => (
                           <span
                             key={tag}
-                            className="rounded-full border border-white/[0.05] bg-white/[0.015] px-2.5 py-1 text-[9px] text-slate-600"
+                            className="rounded-full border border-white/[0.05] bg-white/[0.015] px-2 py-1 text-[8px] font-medium text-slate-600"
                           >
                             {tag}
                           </span>
@@ -525,12 +805,6 @@ export default async function StrategiesPage({
                                   name="researchEvidence"
                                   value={researchEvidence ?? ""}
                                 />
-
-                                <input
-                                  type="hidden"
-                                  name="researchLift"
-                                  value={researchLift ?? ""}
-                                />
                               </>
                             )}
 
@@ -550,6 +824,46 @@ export default async function StrategiesPage({
               })}
             </div>
           )}
+
+          {/* Research → Strategy */}
+          <section className="mt-10 rounded-2xl border border-violet-400/[0.08] bg-violet-400/[0.025] p-5 md:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-400/15 bg-violet-400/[0.07]">
+                <Sparkles
+                  size={15}
+                  className="text-violet-400"
+                />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold text-white">
+                  Turn research into an experiment
+                </h3>
+
+                <p className="mt-1 max-w-xl text-[10px] leading-5 text-slate-600">
+                  These patterns are observations, not guarantees. The next
+                  step is to turn a pattern into a strategy and test whether it
+                  works for your own audience.
+                </p>
+
+                <Link
+                  href="/strategies"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-[10px] font-medium text-slate-400 transition-all hover:border-white/[0.14] hover:bg-white/[0.04] hover:text-white"
+                >
+                  Explore strategies
+                  <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          {/* Disclaimer */}
+          <p className="mt-8 text-[9px] leading-5 text-slate-700">
+            Creator research captures observable content patterns. A pattern
+            appearing in a creator&apos;s posts does not establish that it
+            caused their performance or that it will produce the same result
+            for another creator.
+          </p>
         </div>
       </main>
     </AppLayout>

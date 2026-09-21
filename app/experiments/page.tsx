@@ -10,11 +10,13 @@ import {
   Pause,
   Play,
   Target,
+  Trash2,
   TrendingUp,
 } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { logCheckIn, updateExperimentStatus } from "../dashboard/actions";
+import { deleteExperiment } from "../strategies/actions";
 import { AppLayout } from "../components/AppLayout";
 
 function buildChart(checkIns: { followerCount: number }[]) {
@@ -193,9 +195,7 @@ function ExperimentCard({
             </div>
 
             <div className="mt-1 text-sm font-semibold text-slate-300">
-              {firstCount !== undefined
-                ? firstCount.toLocaleString()
-                : "—"}
+              {firstCount !== undefined ? firstCount.toLocaleString() : "—"}
             </div>
           </div>
 
@@ -270,10 +270,7 @@ function ExperimentCard({
         ) : (
           <div className="mt-5 flex h-[130px] items-center justify-center rounded-lg border border-dashed border-white/[0.05] bg-white/[0.01]">
             <div className="text-center">
-              <Clock3
-                size={16}
-                className="mx-auto text-slate-700"
-              />
+              <Clock3 size={16} className="mx-auto text-slate-700" />
 
               <p className="mt-2 text-[10px] text-slate-600">
                 Log a second check-in to reveal your growth trend.
@@ -284,10 +281,7 @@ function ExperimentCard({
 
         {/* Check-in */}
         {experiment.status === "active" ? (
-          <form
-            action={logCheckIn}
-            className="mt-4 flex gap-2"
-          >
+          <form action={logCheckIn} className="mt-4 flex gap-2">
             <input
               type="hidden"
               name="experimentId"
@@ -312,8 +306,7 @@ function ExperimentCard({
           </form>
         ) : experiment.status === "paused" ? (
           <div className="mt-4 rounded-lg border border-amber-400/[0.08] bg-amber-400/[0.025] px-3 py-2.5 text-[10px] text-amber-400/70">
-            This experiment is paused. Resume it to record another
-            result.
+            This experiment is paused. Resume it to record another result.
           </div>
         ) : (
           <div className="mt-4 rounded-lg border border-violet-400/[0.07] bg-violet-400/[0.02] px-3 py-2.5 text-[10px] text-violet-300/60">
@@ -324,7 +317,7 @@ function ExperimentCard({
 
         {/* Controls */}
         <div className="mt-4 flex items-center justify-between border-t border-white/[0.05] pt-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {experiment.status !== "completed" && (
               <>
                 <form action={updateExperimentStatus}>
@@ -338,9 +331,7 @@ function ExperimentCard({
                     type="hidden"
                     name="status"
                     value={
-                      experiment.status === "active"
-                        ? "paused"
-                        : "active"
+                      experiment.status === "active" ? "paused" : "active"
                     }
                   />
 
@@ -354,9 +345,7 @@ function ExperimentCard({
                       <Play size={10} />
                     )}
 
-                    {experiment.status === "active"
-                      ? "Pause"
-                      : "Resume"}
+                    {experiment.status === "active" ? "Pause" : "Resume"}
                   </button>
                 </form>
 
@@ -383,6 +372,41 @@ function ExperimentCard({
                 </form>
               </>
             )}
+
+            {/* Delete */}
+            <details>
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-rose-400/10 bg-rose-400/[0.025] px-2.5 py-1.5 text-[9px] font-medium text-rose-400/70 transition-colors hover:border-rose-400/20 hover:bg-rose-400/[0.05] hover:text-rose-300">
+                <Trash2 size={10} />
+                Delete
+              </summary>
+
+              <div className="absolute z-20 mt-2 w-64 rounded-xl border border-rose-400/[0.10] bg-[#111218] p-3 shadow-2xl shadow-black/40">
+                <p className="text-[10px] font-medium text-slate-300">
+                  Delete this experiment?
+                </p>
+
+                <p className="mt-1 text-[9px] leading-4 text-slate-600">
+                  This removes the experiment and its check-ins. Your
+                  strategy, research, posts, and other experiments stay safe.
+                </p>
+
+                <form action={deleteExperiment} className="mt-3">
+                  <input
+                    type="hidden"
+                    name="experimentId"
+                    value={experiment.id}
+                  />
+
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-rose-500 px-2.5 py-1.5 text-[9px] font-semibold text-white transition-colors hover:bg-rose-400"
+                  >
+                    <Trash2 size={10} />
+                    Yes, delete
+                  </button>
+                </form>
+              </div>
+            </details>
           </div>
 
           <span className="text-[9px] text-slate-700">
@@ -583,10 +607,7 @@ export default async function ExperimentsPage() {
                 <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-96 -translate-x-1/2 rounded-full bg-violet-500/[0.06] blur-[100px]" />
 
                 <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[0.06]">
-                  <FlaskConical
-                    size={20}
-                    className="text-violet-400"
-                  />
+                  <FlaskConical size={20} className="text-violet-400" />
                 </div>
 
                 <h2
@@ -705,4 +726,4 @@ export default async function ExperimentsPage() {
       </main>
     </AppLayout>
   );
-}   
+}

@@ -186,6 +186,39 @@ function formatDateTimeLocal(value: Date | null | undefined) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function buildStrategyResearchHref({
+  creatorId,
+  creatorName,
+  signal,
+}: {
+  creatorId: string;
+  creatorName: string;
+  signal: {
+    dimension: string;
+    dimensionLabel: string;
+    value: string;
+    signalLevel: string;
+    count: number;
+    availableViews: number;
+    performanceCoverage: number;
+    signalLabel: string;
+  };
+}) {
+  const params = new URLSearchParams({
+    research: "1",
+    researchCreatorId: creatorId,
+    researchCreatorName: creatorName,
+    researchDimension: signal.dimensionLabel,
+    researchPattern: signal.value,
+    researchSignal: signal.signalLevel,
+    researchPostCount: String(signal.count),
+    researchMeasuredCount: String(signal.availableViews),
+    researchEvidence: `${signal.availableViews} measured of ${signal.count} studied · ${signal.performanceCoverage}% performance coverage`,
+  });
+
+  return `/strategies?${params.toString()}`;
+}
+
 export default async function CreatorPage({ params }: CreatorPageProps) {
   const { creatorId } = await params;
 
@@ -955,6 +988,32 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
                             </p>
                           </div>
                         </div>
+
+                        {signal.signalLevel !== "none" &&
+                          signal.signalLevel !== "insufficient" && (
+                            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-violet-400/[0.08] bg-violet-400/[0.025] px-3 py-2.5">
+                              <div className="min-w-0">
+                                <p className="text-[8px] font-medium uppercase tracking-[0.1em] text-slate-700">
+                                  Research hypothesis
+                                </p>
+                                <p className="mt-1 text-[9px] leading-4 text-slate-500">
+                                  Carry this observed pattern into your strategy workflow.
+                                </p>
+                              </div>
+
+                              <Link
+                                href={buildStrategyResearchHref({
+                                  creatorId: creator.id,
+                                  creatorName: creator.name,
+                                  signal,
+                                })}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet-500 px-3 py-2 text-[9px] font-semibold text-white transition-all hover:bg-violet-400"
+                              >
+                                Test this pattern
+                                <ArrowUpRight size={10} />
+                              </Link>
+                            </div>
+                          )}
 
                         <details className="mt-3 rounded-lg border border-white/[0.05] bg-white/[0.01]">
                           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">

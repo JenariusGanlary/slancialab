@@ -10,9 +10,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  FlaskConical,
   Pause,
   Play,
   RotateCcw,
+  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -67,6 +69,30 @@ function getStatusClasses(status: string) {
   }
 
   return "border-violet-400/20 bg-violet-400/[0.07] text-violet-300";
+}
+
+function getSignalClasses(signal: string) {
+  if (signal === "potential") {
+    return "border-sky-400/15 bg-sky-400/[0.05] text-sky-300";
+  }
+
+  if (signal === "emerging") {
+    return "border-amber-400/15 bg-amber-400/[0.05] text-amber-300";
+  }
+
+  if (signal === "repeated") {
+    return "border-emerald-400/15 bg-emerald-400/[0.05] text-emerald-300";
+  }
+
+  if (signal === "insufficient") {
+    return "border-slate-400/10 bg-white/[0.025] text-slate-400";
+  }
+
+  return "border-white/[0.06] bg-white/[0.02] text-slate-500";
+}
+
+function formatSignal(signal: string) {
+  return signal.charAt(0).toUpperCase() + signal.slice(1);
 }
 
 function buildChart(values: number[]) {
@@ -129,6 +155,16 @@ export default async function ExperimentDetailPage({
     },
     include: {
       strategy: true,
+      researchFinding: {
+        include: {
+          creator: {
+            select: {
+              name: true,
+              handle: true,
+            },
+          },
+        },
+      },
       checkIns: {
         orderBy: {
           loggedAt: "asc",
@@ -169,6 +205,8 @@ export default async function ExperimentDetailPage({
     ...experiment.strategy.nicheTags,
     ...experiment.strategy.stageTags,
   ];
+
+  const researchFinding = experiment.researchFinding;
 
   return (
     <AppLayout>
@@ -260,6 +298,119 @@ export default async function ExperimentDetailPage({
               </div>
             </div>
           </div>
+
+          {/* Research hypothesis */}
+          {researchFinding && (
+            <section className="mt-8 overflow-hidden rounded-2xl border border-violet-400/[0.10] bg-violet-400/[0.025]">
+              <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="flex items-center gap-2">
+                      <Sparkles
+                        size={13}
+                        className="text-violet-400"
+                      />
+
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-violet-400/70">
+                        Research → hypothesis
+                      </span>
+                    </div>
+
+                    <h2
+                      className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                      style={{ fontFamily: "Fraunces, serif" }}
+                    >
+                      Test the {researchFinding.pattern} pattern.
+                    </h2>
+
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      This experiment was inspired by an observed pattern in
+                      creator research. The research is a hypothesis to test,
+                      not proof that the pattern will produce the same result
+                      for your account.
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex w-fit shrink-0 items-center rounded-full border px-2.5 py-1 text-[9px] font-medium ${getSignalClasses(
+                      researchFinding.signalLevel
+                    )}`}
+                  >
+                    {formatSignal(researchFinding.signalLevel)} signal
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-2 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4 md:px-6">
+                <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                    Pattern
+                  </div>
+
+                  <div className="mt-1 text-xs font-medium text-slate-300">
+                    {researchFinding.pattern}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                    Evidence
+                  </div>
+
+                  <div className="mt-1 text-xs font-medium text-slate-300">
+                    {researchFinding.measuredCount} measured /{" "}
+                    {researchFinding.postCount} posts
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                    Source
+                  </div>
+
+                  <div className="mt-1 truncate text-xs font-medium text-slate-300">
+                    {researchFinding.creator
+                      ? `${researchFinding.creator.name} (@${researchFinding.creator.handle})`
+                      : "Creator research"}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                    Dimension
+                  </div>
+
+                  <div className="mt-1 text-xs font-medium text-slate-300">
+                    {researchFinding.dimension}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/[0.05] px-5 py-4 md:px-6">
+                <div className="flex items-start gap-2.5">
+                  <FlaskConical
+                    size={13}
+                    className="mt-0.5 shrink-0 text-violet-400"
+                  />
+
+                  <div>
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-violet-400/60">
+                      What this experiment is testing
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Apply the{" "}
+                      <span className="font-medium text-slate-300">
+                        {researchFinding.pattern}
+                      </span>{" "}
+                      pattern to your own content and observe how your account
+                      responds over the course of the experiment.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Main stats */}
           <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -519,10 +670,7 @@ export default async function ExperimentDetailPage({
               </p>
 
               {experiment.status !== "completed" && (
-                <form
-                  action={logCheckIn}
-                  className="mt-6"
-                >
+                <form action={logCheckIn} className="mt-6">
                   <input
                     type="hidden"
                     name="experimentId"
@@ -785,8 +933,8 @@ export default async function ExperimentDetailPage({
                   </p>
 
                   <p className="mt-1 text-[10px] text-slate-700">
-                    Log your first follower count above to start
-                    building the experiment history.
+                    Log your first follower count above to start building the
+                    experiment history.
                   </p>
                 </div>
               )}
@@ -802,8 +950,10 @@ export default async function ExperimentDetailPage({
 
               <p className="text-[9px] leading-5 text-slate-700">
                 These are observed follower-count changes between your
-                recorded measurements. They are signals to investigate,
-                not proof that the strategy caused the change.
+                recorded measurements. They are signals to investigate, not
+                proof that the strategy caused the change. Research findings
+                provide hypotheses to test; your own experiment produces the
+                evidence for your account.
               </p>
             </div>
           </div>
