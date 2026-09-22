@@ -70,6 +70,7 @@ enum ContentStyle {
   ENTERTAINMENT
   PERSONAL
   FRAMEWORK
+  LIST
   OBSERVATIONAL
   OTHER
 }
@@ -109,7 +110,16 @@ model Strategy {
   description String
   nicheTags   String[]
   stageTags   String[]
-  createdAt   DateTime @default(now())
+
+  // Reusable experiment template
+  hypothesisTemplate      String?
+  protocolTemplate        String?
+  recommendedDurationDays Int?
+  recommendedPostCount    Int?
+  primaryMetric           String?
+  successThresholdPercent Int?
+
+  createdAt DateTime @default(now())
 
   experiments Experiment[]
 }
@@ -119,13 +129,33 @@ model Experiment {
   userId            String
   strategyId        String
   researchFindingId String?
-  status            String   @default("active")
-  startedAt         DateTime @default(now())
+
+  // Experiment lifecycle
+  status      String   @default("active")
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  // Experiment definition
+  hypothesis String?
+  protocol   String?
+
+  // Experiment protocol
+  durationDays            Int?
+  targetPostCount         Int?
+  primaryMetric           String?
+  successThresholdPercent Int?
+
+  // Experiment baseline
+  baselineAverage    Float?
+  baselineSampleSize Int?
+  baselineCapturedAt DateTime?
 
   user            User             @relation(fields: [userId], references: [id])
   strategy        Strategy         @relation(fields: [strategyId], references: [id])
   researchFinding ResearchFinding? @relation(fields: [researchFindingId], references: [id])
   checkIns        CheckIn[]
+  posts           ExperimentPost[]
+  result          ExperimentResult?
 }
 
 model CheckIn {
@@ -133,6 +163,52 @@ model CheckIn {
   experimentId  String
   followerCount Int
   loggedAt      DateTime @default(now())
+
+  experiment Experiment @relation(fields: [experimentId], references: [id])
+}
+
+model ExperimentPost {
+  id           String   @id @default(cuid())
+  experimentId String
+
+  // X post identity
+  postId  String?
+  postUrl String?
+
+  // Post content
+  content String?
+
+  // Publishing state
+  publishedAt DateTime?
+
+  // Performance snapshot
+  views   Int?
+  likes   Int?
+  replies Int?
+  reposts Int?
+
+  createdAt DateTime @default(now())
+
+  experiment Experiment @relation(fields: [experimentId], references: [id])
+}
+
+model ExperimentResult {
+  id           String @id @default(cuid())
+  experimentId String @unique
+
+  // Final evaluation snapshot
+  status                    String
+  primaryMetric             String
+  postsMeasured             Int
+  baselineAverage           Float?
+  baselineSampleSize        Int?
+  experimentAverage         Float?
+  absoluteChange             Float?
+  percentageChange           Float?
+  successThresholdPercent   Int?
+
+  // Historical record timestamp
+  recordedAt DateTime @default(now())
 
   experiment Experiment @relation(fields: [experimentId], references: [id])
 }
@@ -150,7 +226,7 @@ model Creator {
 }
 
 model ResearchFinding {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   creatorId String
 
   // Pattern identity
@@ -161,9 +237,9 @@ model ResearchFinding {
   signalLevel String
 
   // Evidence snapshot
-  postCount     Int
-  measuredCount Int
-  evidenceLabel String
+  postCount         Int
+  measuredCount     Int
+  evidenceLabel     String
   medianLiftPercent Int?
 
   createdAt DateTime @default(now())

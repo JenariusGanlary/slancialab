@@ -15,15 +15,26 @@ import {
   Play,
   RotateCcw,
   Sparkles,
+  Target,
   TrendingDown,
   TrendingUp,
+  ExternalLink,
+  FileText,
+  Trash2,
 } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
+import { evaluateExperiment } from "@/lib/experiment-evaluation";
 import {
   logCheckIn,
   updateExperimentStatus,
 } from "../../dashboard/actions";
+import {
+  addExperimentPost,
+  deleteExperimentPost,
+  updateExperimentPostMetrics,
+  setExperimentBaseline,
+} from "../../strategies/actions";
 import { AppLayout } from "../../components/AppLayout";
 
 type PageProps = {
@@ -41,6 +52,16 @@ function formatDate(date: Date) {
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -93,6 +114,51 @@ function getSignalClasses(signal: string) {
 
 function formatSignal(signal: string) {
   return signal.charAt(0).toUpperCase() + signal.slice(1);
+}
+
+function getPrimaryMetricLabel(metric: string | null) {
+  if (metric === "views") return "Views";
+  if (metric === "likes") return "Likes";
+  if (metric === "replies") return "Replies";
+  if (metric === "reposts") return "Reposts";
+  if (metric === "engagement_rate") return "Engagement rate";
+  if (metric === "follower_growth") return "Follower growth";
+
+  return "Not configured";
+}
+
+function getEvaluationStatusLabel(status: string) {
+  if (status === "met_threshold") return "Threshold met";
+  if (status === "below_threshold") return "Below threshold";
+
+  return "Not enough data";
+}
+
+function getEvaluationStatusClasses(status: string) {
+  if (status === "met_threshold") {
+    return "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-400";
+  }
+
+  if (status === "below_threshold") {
+    return "border-amber-400/20 bg-amber-400/[0.07] text-amber-300";
+  }
+
+  return "border-slate-400/10 bg-white/[0.025] text-slate-400";
+}
+
+function formatMetricValue(
+  value: number | null,
+  metric: string | null
+) {
+  if (value === null) {
+    return "—";
+  }
+
+  if (metric === "engagement_rate") {
+    return `${value.toFixed(1)}%`;
+  }
+
+  return formatNumber(Math.round(value));
 }
 
 function buildChart(values: number[]) {
@@ -170,12 +236,23 @@ export default async function ExperimentDetailPage({
           loggedAt: "asc",
         },
       },
+      posts: {
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
     },
   });
 
   if (!experiment) {
     notFound();
   }
+
+  const experimentResult = await prisma.experimentResult.findUnique({
+    where: {
+      experimentId: experiment.id,
+    },
+  });
 
   const measurements = experiment.checkIns.map(
     (checkIn) => checkIn.followerCount
@@ -207,6 +284,46 @@ export default async function ExperimentDetailPage({
   ];
 
   const researchFinding = experiment.researchFinding;
+
+  const totalViews = experiment.posts.reduce(
+    (sum, post) => sum + (post.views ?? 0),
+    0
+  );
+
+  const totalLikes = experiment.posts.reduce(
+    (sum, post) => sum + (post.likes ?? 0),
+    0
+  );
+
+  const totalReplies = experiment.posts.reduce(
+    (sum, post) => sum + (post.replies ?? 0),
+    0
+  );
+
+  const totalReposts = experiment.posts.reduce(
+    (sum, post) => sum + (post.reposts ?? 0),
+    0
+  );
+
+  const evaluation = evaluateExperiment({
+    primaryMetric: experiment.primaryMetric,
+    successThresholdPercent: experiment.successThresholdPercent,
+    posts: experiment.posts.map((post) => ({
+      id: post.id,
+      metrics: {
+        views: post.views,
+        likes: post.likes,
+        replies: post.replies,
+        reposts: post.reposts,
+      },
+    })),
+    baselineAverage: experiment.baselineAverage,
+  });
+
+  const canSetBaseline =
+    experiment.status !== "completed" &&
+    experiment.primaryMetric !== null &&
+    experiment.primaryMetric !== "follower_growth";
 
   return (
     <AppLayout>
@@ -295,9 +412,161 @@ export default async function ExperimentDetailPage({
                     </p>
                   </div>
                 </div>
+
+                {experiment.completedAt && (
+                  <div className="mt-3 flex items-center gap-2 border-t border-white/[0.05] pt-3">
+                    <CheckCircle2
+                      size={13}
+                      className="text-violet-400"
+                    />
+
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Completed
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {formatDate(experiment.completedAt)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Experiment definition */}
+          {(experiment.hypothesis ||
+            experiment.protocol ||
+            experiment.durationDays !== null ||
+            experiment.targetPostCount !== null ||
+            experiment.primaryMetric !== null ||
+            experiment.successThresholdPercent !== null) && (
+            <section className="mt-8 overflow-hidden rounded-2xl border border-sky-400/[0.10] bg-sky-400/[0.02]">
+              <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+                <div className="flex items-center gap-2">
+                  <Target
+                    size={13}
+                    className="text-sky-400"
+                  />
+
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-400/70">
+                    Experiment definition
+                  </span>
+                </div>
+
+                <h2
+                  className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                  style={{ fontFamily: "Fraunces, serif" }}
+                >
+                  What you are testing
+                </h2>
+              </div>
+
+              {(experiment.hypothesis || experiment.protocol) && (
+                <div className="grid gap-3 p-5 md:p-6 lg:grid-cols-2">
+                  {experiment.hypothesis && (
+                    <div className="rounded-xl border border-white/[0.05] bg-white/[0.015] p-4">
+                      <div className="flex items-center gap-2">
+                        <FlaskConical
+                          size={13}
+                          className="text-sky-400"
+                        />
+
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                          Hypothesis
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm leading-6 text-slate-300">
+                        {experiment.hypothesis}
+                      </p>
+                    </div>
+                  )}
+
+                  {experiment.protocol && (
+                    <div className="rounded-xl border border-white/[0.05] bg-white/[0.015] p-4">
+                      <div className="flex items-center gap-2">
+                        <Beaker
+                          size={13}
+                          className="text-sky-400"
+                        />
+
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                          Protocol
+                        </span>
+                      </div>
+
+                      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {experiment.protocol}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(experiment.durationDays !== null ||
+                experiment.targetPostCount !== null ||
+                experiment.primaryMetric !== null ||
+                experiment.successThresholdPercent !== null) && (
+                <div className="grid gap-2 border-t border-white/[0.05] px-5 py-4 sm:grid-cols-2 lg:grid-cols-4 md:px-6">
+                  {experiment.durationDays !== null && (
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Duration
+                      </div>
+
+                      <div className="mt-1 text-xs font-medium text-slate-300">
+                        {experiment.durationDays}{" "}
+                        {experiment.durationDays === 1
+                          ? "day"
+                          : "days"}
+                      </div>
+                    </div>
+                  )}
+
+                  {experiment.targetPostCount !== null && (
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Target posts
+                      </div>
+
+                      <div className="mt-1 text-xs font-medium text-slate-300">
+                        {experiment.posts.length} /{" "}
+                        {experiment.targetPostCount}
+                      </div>
+                    </div>
+                  )}
+
+                  {experiment.primaryMetric !== null && (
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Primary metric
+                      </div>
+
+                      <div className="mt-1 text-xs font-medium text-slate-300">
+                        {getPrimaryMetricLabel(
+                          experiment.primaryMetric
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {experiment.successThresholdPercent !== null && (
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Success threshold
+                      </div>
+
+                      <div className="mt-1 text-xs font-medium text-slate-300">
+                        +{experiment.successThresholdPercent}%
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Research hypothesis */}
           {researchFinding && (
@@ -497,6 +766,739 @@ export default async function ExperimentDetailPage({
               </div>
             </div>
           </div>
+
+          {/* Post performance summary */}
+          <section className="mt-8 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.015]">
+            <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileText
+                      size={13}
+                      className="text-violet-400"
+                    />
+
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-violet-400/70">
+                      Experiment content
+                    </span>
+                  </div>
+
+                  <h2
+                    className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                    style={{ fontFamily: "Fraunces, serif" }}
+                  >
+                    Posts and performance
+                  </h2>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Content published as part of this experiment and the
+                    performance data you have recorded for it.
+                  </p>
+                </div>
+
+                <div className="text-[10px] text-slate-600">
+                  {experiment.posts.length}{" "}
+                  {experiment.posts.length === 1 ? "post" : "posts"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 border-b border-white/[0.05] p-4 sm:grid-cols-2 lg:grid-cols-4 md:p-5">
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Views
+                </div>
+                <div className="mt-1 text-sm font-medium text-slate-300">
+                  {formatNumber(totalViews)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Likes
+                </div>
+                <div className="mt-1 text-sm font-medium text-slate-300">
+                  {formatNumber(totalLikes)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Replies
+                </div>
+                <div className="mt-1 text-sm font-medium text-slate-300">
+                  {formatNumber(totalReplies)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Reposts
+                </div>
+                <div className="mt-1 text-sm font-medium text-slate-300">
+                  {formatNumber(totalReposts)}
+                </div>
+              </div>
+            </div>
+
+            {experiment.posts.length > 0 && (
+              <div className="divide-y divide-white/[0.04]">
+                {experiment.posts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="p-5 md:p-6"
+                  >
+                    <div className="flex flex-col gap-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                              {post.publishedAt
+                                ? `Published ${formatDateTime(
+                                    post.publishedAt
+                                  )}`
+                                : "Draft / unpublished"}
+                            </span>
+
+                            {post.postId && (
+                              <span className="rounded-full border border-white/[0.05] bg-white/[0.02] px-2 py-0.5 text-[8px] text-slate-700">
+                                ID: {post.postId}
+                              </span>
+                            )}
+                          </div>
+
+                          {post.content && (
+                            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
+                              {post.content}
+                            </p>
+                          )}
+
+                          {!post.content && post.postUrl && (
+                            <p className="mt-3 text-xs text-slate-600">
+                              Tracked X post
+                            </p>
+                          )}
+
+                          {post.postUrl && (
+                            <a
+                              href={post.postUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-medium text-violet-400 transition-colors hover:text-violet-300"
+                            >
+                              Open post
+                              <ExternalLink size={10} />
+                            </a>
+                          )}
+                        </div>
+
+                        {experiment.status !== "completed" && (
+                          <form action={deleteExperimentPost}>
+                            <input
+                              type="hidden"
+                              name="experimentPostId"
+                              value={post.id}
+                            />
+
+                            <button
+                              type="submit"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-400/10 bg-rose-400/[0.025] px-2.5 py-2 text-[9px] font-medium text-rose-400/70 transition-colors hover:border-rose-400/20 hover:bg-rose-400/[0.06] hover:text-rose-300"
+                            >
+                              <Trash2 size={10} />
+                              Delete
+                            </button>
+                          </form>
+                        )}
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded-lg border border-white/[0.05] bg-[#08090d] p-3">
+                          <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                            Views
+                          </div>
+
+                          <div className="mt-1 text-xs font-medium text-slate-300">
+                            {post.views !== null
+                              ? formatNumber(post.views)
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-white/[0.05] bg-[#08090d] p-3">
+                          <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                            Likes
+                          </div>
+
+                          <div className="mt-1 text-xs font-medium text-slate-300">
+                            {post.likes !== null
+                              ? formatNumber(post.likes)
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-white/[0.05] bg-[#08090d] p-3">
+                          <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                            Replies
+                          </div>
+
+                          <div className="mt-1 text-xs font-medium text-slate-300">
+                            {post.replies !== null
+                              ? formatNumber(post.replies)
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-white/[0.05] bg-[#08090d] p-3">
+                          <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                            Reposts
+                          </div>
+
+                          <div className="mt-1 text-xs font-medium text-slate-300">
+                            {post.reposts !== null
+                              ? formatNumber(post.reposts)
+                              : "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {experiment.status !== "completed" && (
+                        <details className="group">
+                          <summary className="cursor-pointer list-none text-[9px] font-medium uppercase tracking-[0.12em] text-slate-700 transition-colors hover:text-slate-400">
+                            Update performance
+                          </summary>
+
+                          <form
+                            action={updateExperimentPostMetrics}
+                            className="mt-3 grid gap-2 rounded-xl border border-white/[0.05] bg-white/[0.01] p-3 sm:grid-cols-2 lg:grid-cols-4"
+                          >
+                            <input
+                              type="hidden"
+                              name="experimentPostId"
+                              value={post.id}
+                            />
+
+                            <input
+                              type="number"
+                              name="views"
+                              min="0"
+                              defaultValue={post.views ?? ""}
+                              placeholder="Views"
+                              className="rounded-lg border border-white/[0.06] bg-[#08090d] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                            />
+
+                            <input
+                              type="number"
+                              name="likes"
+                              min="0"
+                              defaultValue={post.likes ?? ""}
+                              placeholder="Likes"
+                              className="rounded-lg border border-white/[0.06] bg-[#08090d] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                            />
+
+                            <input
+                              type="number"
+                              name="replies"
+                              min="0"
+                              defaultValue={post.replies ?? ""}
+                              placeholder="Replies"
+                              className="rounded-lg border border-white/[0.06] bg-[#08090d] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                            />
+
+                            <input
+                              type="number"
+                              name="reposts"
+                              min="0"
+                              defaultValue={post.reposts ?? ""}
+                              placeholder="Reposts"
+                              className="rounded-lg border border-white/[0.06] bg-[#08090d] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                            />
+
+                            <button
+                              type="submit"
+                              className="sm:col-span-2 lg:col-span-4 inline-flex items-center justify-center gap-1.5 rounded-lg bg-violet-500 px-3 py-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-400"
+                            >
+                              Save performance
+                              <Check size={11} />
+                            </button>
+                          </form>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {experiment.posts.length === 0 && (
+              <div className="px-5 py-10 text-center md:px-6">
+                <FileText
+                  size={18}
+                  className="mx-auto text-slate-700"
+                />
+
+                <p className="mt-3 text-xs text-slate-600">
+                  No posts are attached to this experiment yet.
+                </p>
+
+                <p className="mt-1 text-[10px] text-slate-700">
+                  Add the content you publish so Slancialab can connect
+                  execution with experiment results.
+                </p>
+              </div>
+            )}
+
+            {experiment.status !== "completed" && (
+              <div className="border-t border-white/[0.05] p-5 md:p-6">
+                <div className="mb-4">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-700">
+                    Track a post
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    Attach content to this experiment before or after
+                    publishing.
+                  </p>
+                </div>
+
+                <form
+                  action={addExperimentPost}
+                  className="grid gap-3"
+                >
+                  <input
+                    type="hidden"
+                    name="experimentId"
+                    value={experiment.id}
+                  />
+
+                  <textarea
+                    name="content"
+                    rows={4}
+                    maxLength={10000}
+                    placeholder="Paste the post content..."
+                    className="w-full resize-none rounded-xl border border-white/[0.07] bg-[#08090d] px-3 py-3 text-xs leading-5 text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                  />
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input
+                      type="text"
+                      name="postId"
+                      maxLength={255}
+                      placeholder="X post ID (optional)"
+                      className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                    />
+
+                    <input
+                      type="url"
+                      name="postUrl"
+                      maxLength={2048}
+                      placeholder="X post URL (optional)"
+                      className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                    />
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input
+                      type="datetime-local"
+                      name="publishedAt"
+                      className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-slate-500 outline-none focus:border-violet-400/30"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        name="views"
+                        min="0"
+                        placeholder="Views"
+                        className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                      />
+
+                      <input
+                        type="number"
+                        name="likes"
+                        min="0"
+                        placeholder="Likes"
+                        className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      type="number"
+                      name="replies"
+                      min="0"
+                      placeholder="Replies"
+                      className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                    />
+
+                    <input
+                      type="number"
+                      name="reposts"
+                      min="0"
+                      placeholder="Reposts"
+                      className="rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-violet-400/30"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-violet-500 px-4 py-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-violet-400"
+                  >
+                    Add to experiment
+                    <ArrowUpRight size={12} />
+                  </button>
+                </form>
+              </div>
+            )}
+          </section>
+
+          {/* Experiment baseline */}
+          <section className="mt-8 overflow-hidden rounded-2xl border border-amber-400/[0.10] bg-amber-400/[0.015]">
+            <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target
+                      size={13}
+                      className="text-amber-400"
+                    />
+
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-400/70">
+                      Experiment baseline
+                    </span>
+                  </div>
+
+                  <h2
+                    className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                    style={{ fontFamily: "Fraunces, serif" }}
+                  >
+                    Establish the starting point
+                  </h2>
+
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+                    The baseline represents your pre-experiment average for
+                    the primary metric. Slancialab uses it to compare your
+                    experiment against where you started.
+                  </p>
+                </div>
+
+                {experiment.baselineCapturedAt && (
+                  <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-400/[0.05] px-2.5 py-1 text-[9px] font-medium text-emerald-400">
+                    <Check size={9} />
+                    Baseline captured
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {experiment.primaryMetric === "follower_growth" ? (
+              <div className="px-5 py-5 md:px-6">
+                <div className="rounded-xl border border-white/[0.05] bg-white/[0.015] p-4">
+                  <p className="text-xs leading-5 text-slate-500">
+                    Follower growth is evaluated from experiment-level
+                    follower measurements rather than post-level baseline
+                    performance.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-2 p-4 sm:grid-cols-3 md:p-5">
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Primary metric
+                    </div>
+
+                    <div className="mt-1.5 text-xs font-medium text-slate-300">
+                      {getPrimaryMetricLabel(experiment.primaryMetric)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Baseline average
+                    </div>
+
+                    <div className="mt-1.5 text-xs font-medium text-slate-300">
+                      {experiment.baselineAverage !== null
+                        ? formatMetricValue(
+                            experiment.baselineAverage,
+                            experiment.primaryMetric
+                          )
+                        : "Not captured"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                      Sample size
+                    </div>
+
+                    <div className="mt-1.5 text-xs font-medium text-slate-300">
+                      {experiment.baselineSampleSize !== null
+                        ? `${formatNumber(
+                            experiment.baselineSampleSize
+                          )} posts`
+                        : "Not captured"}
+                    </div>
+                  </div>
+                </div>
+
+                {experiment.baselineCapturedAt && (
+                  <div className="border-t border-white/[0.05] px-5 py-3 md:px-6">
+                    <p className="text-[9px] text-slate-700">
+                      Captured {formatDateTime(experiment.baselineCapturedAt)}
+                    </p>
+                  </div>
+                )}
+
+                {canSetBaseline && (
+                  <div className="border-t border-white/[0.05] p-5 md:p-6">
+                    <div className="mb-4">
+                      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-700">
+                        {experiment.baselineAverage !== null
+                          ? "Update baseline"
+                          : "Set baseline"}
+                      </div>
+
+                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                        Enter the average performance from posts published
+                        before this experiment. This should represent the
+                        account&apos;s normal performance before testing the
+                        strategy.
+                      </p>
+                    </div>
+
+                    <form
+                      action={setExperimentBaseline}
+                      className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+                    >
+                      <input
+                        type="hidden"
+                        name="experimentId"
+                        value={experiment.id}
+                      />
+
+                      <div>
+                        <label className="mb-1.5 block text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                          Average{" "}
+                          {getPrimaryMetricLabel(
+                            experiment.primaryMetric
+                          )}
+                        </label>
+
+                        <input
+                          type="number"
+                          name="baselineAverage"
+                          min="0"
+                          step="any"
+                          required
+                          defaultValue={
+                            experiment.baselineAverage ?? ""
+                          }
+                          placeholder={
+                            experiment.primaryMetric === "engagement_rate"
+                              ? "e.g. 4.5"
+                              : "e.g. 1000"
+                          }
+                          className="w-full rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-amber-400/30"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                          Posts measured
+                        </label>
+
+                        <input
+                          type="number"
+                          name="baselineSampleSize"
+                          min="1"
+                          step="1"
+                          required
+                          defaultValue={
+                            experiment.baselineSampleSize ?? ""
+                          }
+                          placeholder="e.g. 10"
+                          className="w-full rounded-lg border border-white/[0.07] bg-[#08090d] px-3 py-2.5 text-xs text-white outline-none placeholder:text-slate-700 focus:border-amber-400/30"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="self-end inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2.5 text-[10px] font-semibold text-[#090a0f] transition-colors hover:bg-amber-400"
+                      >
+                        {experiment.baselineAverage !== null
+                          ? "Update baseline"
+                          : "Set baseline"}
+                        <Check size={11} />
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {!canSetBaseline &&
+                  experiment.baselineAverage === null &&
+                  experiment.status === "completed" && (
+                    <div className="border-t border-white/[0.05] px-5 py-5 md:px-6">
+                      <p className="text-xs leading-5 text-slate-600">
+                        This experiment is completed and does not have a
+                        baseline captured.
+                      </p>
+                    </div>
+                  )}
+              </>
+            )}
+          </section>
+
+          {/* Experiment evaluation */}
+          <section className="mt-8 overflow-hidden rounded-2xl border border-emerald-400/[0.10] bg-emerald-400/[0.015]">
+            <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target
+                      size={13}
+                      className="text-emerald-400"
+                    />
+
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-400/70">
+                      Experiment evaluation
+                    </span>
+                  </div>
+
+                  <h2
+                    className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                    style={{ fontFamily: "Fraunces, serif" }}
+                  >
+                    What did the experiment actually produce?
+                  </h2>
+
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+                    Evaluation compares the measured experiment performance
+                    against the configured baseline and success threshold.
+                  </p>
+                </div>
+
+                <span
+                  className={`inline-flex w-fit shrink-0 items-center rounded-full border px-2.5 py-1 text-[9px] font-medium ${getEvaluationStatusClasses(
+                    evaluation.status
+                  )}`}
+                >
+                  {getEvaluationStatusLabel(evaluation.status)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4 md:p-5">
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Primary metric
+                </div>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-300">
+                  {getPrimaryMetricLabel(evaluation.primaryMetric)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Measured posts
+                </div>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-300">
+                  {evaluation.postsWithMetric} / {evaluation.totalPosts}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Experiment average
+                </div>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-300">
+                  {formatMetricValue(
+                    evaluation.experimentAverage,
+                    evaluation.primaryMetric
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Success threshold
+                </div>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-300">
+                  {evaluation.successThresholdPercent !== null
+                    ? `+${evaluation.successThresholdPercent}%`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 border-t border-white/[0.05] p-4 sm:grid-cols-2 md:p-5">
+              <div className="rounded-lg border border-white/[0.05] bg-[#08090d] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Baseline
+                </div>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-300">
+                  {formatMetricValue(
+                    evaluation.baselineAverage,
+                    evaluation.primaryMetric
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/[0.05] bg-[#08090d] px-3 py-3">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                  Change
+                </div>
+
+                <div
+                  className={`mt-1.5 text-xs font-medium ${
+                    evaluation.percentageChange !== null &&
+                    evaluation.percentageChange >= 0
+                      ? "text-emerald-400"
+                      : evaluation.percentageChange !== null
+                        ? "text-rose-400"
+                        : "text-slate-500"
+                  }`}
+                >
+                  {evaluation.percentageChange !== null
+                    ? `${
+                        evaluation.percentageChange >= 0 ? "+" : ""
+                      }${evaluation.percentageChange.toFixed(1)}%`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-white/[0.05] px-5 py-4 md:px-6">
+              <div className="flex items-start gap-2.5">
+                <FlaskConical
+                  size={13}
+                  className="mt-0.5 shrink-0 text-emerald-400/70"
+                />
+
+                <div>
+                  <p className="text-xs leading-5 text-slate-400">
+                    {evaluation.message}
+                  </p>
+
+                  {evaluation.baselineAverage === null &&
+                    evaluation.experimentAverage !== null && (
+                      <p className="mt-2 text-[10px] leading-5 text-slate-700">
+                        Performance has been recorded, but Slancialab needs a
+                        valid baseline before it can determine whether the
+                        experiment met its success threshold.
+                      </p>
+                    )}
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* Chart + experiment controls */}
           <div className="mt-8 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
@@ -832,23 +1834,174 @@ export default async function ExperimentDetailPage({
             </div>
           </section>
 
-          {/* Measurement history */}
+          {/* Recorded result */}
           <section className="mt-8">
             <div className="mb-4">
               <div className="text-[9px] uppercase tracking-[0.14em] text-slate-700">
-                Measurement history
+                Experiment result
               </div>
 
               <h2
                 className="mt-1 text-2xl font-semibold text-white"
                 style={{ fontFamily: "Fraunces, serif" }}
               >
-                Recorded results
+                Recorded result
               </h2>
             </div>
 
             <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.015]">
-              {experiment.checkIns.length > 0 ? (
+              {experimentResult ? (
+                <>
+                  <div className="flex flex-col gap-4 border-b border-white/[0.04] px-5 py-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-slate-300">
+                        Evaluation recorded {formatDateTime(experimentResult.recordedAt)}
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-700">
+                        This is the evaluation captured when the experiment was completed.
+                      </p>
+                    </div>
+
+                    <span
+                      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[9px] font-medium ${getEvaluationStatusClasses(
+                        experimentResult.status
+                      )}`}
+                    >
+                      {getEvaluationStatusLabel(experimentResult.status)}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4 md:p-5">
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Primary metric
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {getPrimaryMetricLabel(experimentResult.primaryMetric)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Posts measured
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {formatNumber(experimentResult.postsMeasured)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Baseline average
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {formatMetricValue(
+                          experimentResult.baselineAverage,
+                          experimentResult.primaryMetric
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Experiment average
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {formatMetricValue(
+                          experimentResult.experimentAverage,
+                          experimentResult.primaryMetric
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 border-t border-white/[0.05] p-4 sm:grid-cols-3 md:p-5">
+                    <div className="rounded-lg border border-white/[0.05] bg-[#08090d] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Absolute change
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {experimentResult.absoluteChange !== null
+                          ? `${experimentResult.absoluteChange >= 0 ? "+" : ""}${formatMetricValue(
+                              experimentResult.absoluteChange,
+                              experimentResult.primaryMetric
+                            )}`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/[0.05] bg-[#08090d] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Percentage change
+                      </div>
+                      <div
+                        className={`mt-1.5 text-xs font-medium ${
+                          experimentResult.percentageChange !== null &&
+                          experimentResult.percentageChange >= 0
+                            ? "text-emerald-400"
+                            : experimentResult.percentageChange !== null
+                              ? "text-rose-400"
+                              : "text-slate-500"
+                        }`}
+                      >
+                        {experimentResult.percentageChange !== null
+                          ? `${experimentResult.percentageChange >= 0 ? "+" : ""}${experimentResult.percentageChange.toFixed(1)}%`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/[0.05] bg-[#08090d] px-3 py-3">
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                        Success threshold
+                      </div>
+                      <div className="mt-1.5 text-xs font-medium text-slate-300">
+                        {experimentResult.successThresholdPercent !== null
+                          ? `+${experimentResult.successThresholdPercent}%`
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="px-5 py-12 text-center">
+                  <CheckCircle2
+                    size={18}
+                    className="mx-auto text-slate-700"
+                  />
+                  <p className="mt-3 text-xs text-slate-600">
+                    No completed result has been recorded yet.
+                  </p>
+                  <p className="mt-1 text-[10px] text-slate-700">
+                    Complete the experiment after valid baseline and performance data are available.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Measurement history */}
+                    {/* Follower measurement history */}
+          {experiment.checkIns.length > 0 && (
+            <section className="mt-8">
+              <div className="mb-4">
+                <div className="text-[9px] uppercase tracking-[0.14em] text-slate-700">
+                  Follower measurements
+                </div>
+
+                <h2
+                  className="mt-1 text-2xl font-semibold text-white"
+                  style={{ fontFamily: "Fraunces, serif" }}
+                >
+                  Measurement history
+                </h2>
+
+                <p className="mt-1 max-w-xl text-[10px] leading-5 text-slate-600">
+                  Timestamped follower counts recorded while running this
+                  experiment.
+                </p>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.015]">
                 <div>
                   {experiment.checkIns
                     .slice()
@@ -921,26 +2074,9 @@ export default async function ExperimentDetailPage({
                       );
                     })}
                 </div>
-              ) : (
-                <div className="px-5 py-12 text-center">
-                  <Clock3
-                    size={18}
-                    className="mx-auto text-slate-700"
-                  />
-
-                  <p className="mt-3 text-xs text-slate-600">
-                    No measurements have been recorded yet.
-                  </p>
-
-                  <p className="mt-1 text-[10px] text-slate-700">
-                    Log your first follower count above to start building the
-                    experiment history.
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
-
+              </div>
+            </section>
+          )}
           {/* Product philosophy */}
           <div className="mt-8 rounded-xl border border-white/[0.05] bg-white/[0.01] px-4 py-3">
             <div className="flex items-start gap-2.5">

@@ -1,74 +1,97 @@
-import {
+﻿import {
   findBestStrategyForResearch,
   matchStrategiesToResearch,
   type StrategyMatchInput,
 } from "../lib/strategy-matching";
 
+type StrategyFixtureInput = Pick<
+  StrategyMatchInput,
+  "id" | "title" | "description" | "nicheTags" | "stageTags"
+>;
+
+/*
+ * Test fixtures only need to exercise title/description/tag
+ * matching, not the experiment template fields. This helper
+ * fills the six template fields with null so fixtures stay
+ * short while still satisfying StrategyMatchInput.
+ */
+function makeStrategy(input: StrategyFixtureInput): StrategyMatchInput {
+  return {
+    ...input,
+    hypothesisTemplate: null,
+    protocolTemplate: null,
+    recommendedDurationDays: null,
+    recommendedPostCount: null,
+    primaryMetric: null,
+    successThresholdPercent: null,
+  };
+}
+
 const strategies: StrategyMatchInput[] = [
-  {
+  makeStrategy({
     id: "1",
     title: "Reply-Guy Method",
     description:
       "Reply thoughtfully to 10-15 posts a day from bigger accounts in your niche before posting anything of your own.",
     nicheTags: ["Technology"],
     stageTags: ["0-1k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "2",
     title: "Curiosity-Gap Hooks",
     description:
       "Open every post with a line that creates a specific, answerable question in the reader's head.",
     nicheTags: ["Technology"],
     stageTags: ["0-1k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "3",
     title: "Thread Every Tuesday",
     description:
       "Commit to one long-form thread every Tuesday breaking down something you actually did.",
     nicheTags: ["Technology"],
     stageTags: ["1k-10k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "4",
     title: "Build-in-Public Daily Log",
     description:
       "Post one short, specific update a day on what you actually built, shipped, or broke.",
     nicheTags: ["SaaS & Startups"],
     stageTags: ["0-1k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "5",
     title: "Contrarian Take Fridays",
     description:
       "Once a week, post a genuine disagreement with common wisdom in your niche.",
     nicheTags: ["Technology"],
     stageTags: ["1k-10k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "6",
     title: "Quote-Tweet Value-Add",
     description:
       "Find posts getting real engagement and quote-tweet them with a genuinely different angle or counterpoint.",
     nicheTags: ["Technology"],
     stageTags: ["0-1k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "7",
     title: "The Numbered List Post",
     description:
       "Package one real lesson as a tight numbered list.",
     nicheTags: ["Technology"],
     stageTags: ["0-1k followers"],
-  },
-  {
+  }),
+  makeStrategy({
     id: "8",
     title: "Screenshot-Proof Posts",
     description:
       "Whenever a real result happens, post the actual screenshot with one sentence of context.",
     nicheTags: ["SaaS & Startups"],
     stageTags: ["1k-10k followers"],
-  },
+  }),
 ];
 
 function assert(
@@ -182,14 +205,14 @@ assert(
 
 // 15. Description-only similarity cannot create a match
 const descriptionOnlyStrategies: StrategyMatchInput[] = [
-  {
+  makeStrategy({
     id: "x",
     title: "Some Random Strategy",
     description:
       "Use a contrarian take and challenge common wisdom.",
     nicheTags: [],
     stageTags: [],
-  },
+  }),
 ];
 
 assert(

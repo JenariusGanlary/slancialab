@@ -58,6 +58,252 @@ function getSignalClasses(signal: string | undefined) {
   }
 }
 
+function ExperimentDefinitionFields({
+  prefix,
+  hypothesisTemplate,
+  protocolTemplate,
+  recommendedDurationDays,
+  recommendedPostCount,
+  primaryMetric,
+  successThresholdPercent,
+}: {
+  prefix: string;
+  hypothesisTemplate?: string | null;
+  protocolTemplate?: string | null;
+  recommendedDurationDays?: number | null;
+  recommendedPostCount?: number | null;
+  primaryMetric?: string | null;
+  successThresholdPercent?: number | null;
+}) {
+  const validPrimaryMetrics = new Set([
+    "views",
+    "likes",
+    "replies",
+    "reposts",
+    "engagement_rate",
+    "follower_growth",
+  ]);
+
+  const resolvedPrimaryMetric =
+    primaryMetric && validPrimaryMetrics.has(primaryMetric)
+      ? primaryMetric
+      : "views";
+
+  return (
+    <div className="mt-4 space-y-4 border-t border-white/[0.05] pt-4">
+      <div>
+        <label
+          htmlFor={`${prefix}-hypothesis`}
+          className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+        >
+          Hypothesis
+        </label>
+
+        <textarea
+          id={`${prefix}-hypothesis`}
+          name="hypothesis"
+          rows={3}
+          defaultValue={hypothesisTemplate ?? ""}
+          placeholder="I expect this strategy to improve..."
+          className="w-full resize-none rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs leading-5 text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor={`${prefix}-protocol`}
+          className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+        >
+          Experiment protocol
+        </label>
+
+        <textarea
+          id={`${prefix}-protocol`}
+          name="protocol"
+          rows={3}
+          defaultValue={protocolTemplate ?? ""}
+          placeholder="How will you run this experiment?"
+          className="w-full resize-none rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs leading-5 text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label
+            htmlFor={`${prefix}-duration`}
+            className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+          >
+            Duration (days)
+          </label>
+
+          <input
+            id={`${prefix}-duration`}
+            name="durationDays"
+            type="number"
+            min="1"
+            defaultValue={
+              recommendedDurationDays ?? undefined
+            }
+            placeholder="14"
+            className="w-full rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor={`${prefix}-posts`}
+            className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+          >
+            Planned posts
+          </label>
+
+          <input
+            id={`${prefix}-posts`}
+            name="targetPostCount"
+            type="number"
+            min="1"
+            defaultValue={
+              recommendedPostCount ?? undefined
+            }
+            placeholder="6"
+            className="w-full rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label
+            htmlFor={`${prefix}-metric`}
+            className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+          >
+            Primary metric
+          </label>
+
+          <select
+            id={`${prefix}-metric`}
+            name="primaryMetric"
+            defaultValue={resolvedPrimaryMetric}
+            className="w-full rounded-lg border border-white/[0.07] bg-[#0d0f15] px-3 py-2.5 text-xs text-slate-300 outline-none transition-colors focus:border-violet-400/30"
+          >
+            <option value="views">Views</option>
+            <option value="likes">Likes</option>
+            <option value="replies">Replies</option>
+            <option value="reposts">Reposts</option>
+            <option value="engagement_rate">Engagement rate</option>
+            <option value="follower_growth">Follower growth</option>
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor={`${prefix}-threshold`}
+            className="mb-1.5 block text-[9px] font-medium uppercase tracking-[0.12em] text-slate-600"
+          >
+            Success threshold (%)
+          </label>
+
+          <input
+            id={`${prefix}-threshold`}
+            name="successThresholdPercent"
+            type="number"
+            min="0"
+            max="100"
+            defaultValue={
+              successThresholdPercent ?? undefined
+            }
+            placeholder="25"
+            className="w-full rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-xs text-slate-300 outline-none transition-colors placeholder:text-slate-700 focus:border-violet-400/30 focus:bg-white/[0.03]"
+          />
+        </div>
+      </div>
+
+      <p className="text-[9px] leading-5 text-slate-700">
+        Recommended values come from this strategy&apos;s experiment template.
+        You can adjust them before starting the experiment.
+      </p>
+    </div>
+  );
+}
+
+function ResearchHiddenFields({
+  researchCreatorId,
+  researchDimension,
+  researchPattern,
+  researchSignal,
+  researchPostCount,
+  researchMeasuredCount,
+  researchEvidence,
+}: {
+  researchCreatorId?: string;
+  researchDimension?: string;
+  researchPattern?: string;
+  researchSignal?: string;
+  researchPostCount?: string;
+  researchMeasuredCount?: string;
+  researchEvidence?: string;
+}) {
+  return (
+    <>
+      {researchCreatorId && (
+        <input
+          type="hidden"
+          name="researchCreatorId"
+          value={researchCreatorId}
+        />
+      )}
+
+      {researchDimension && (
+        <input
+          type="hidden"
+          name="researchDimension"
+          value={researchDimension}
+        />
+      )}
+
+      {researchPattern && (
+        <input
+          type="hidden"
+          name="researchPattern"
+          value={researchPattern}
+        />
+      )}
+
+      {researchSignal && (
+        <input
+          type="hidden"
+          name="researchSignal"
+          value={researchSignal}
+        />
+      )}
+
+      {researchPostCount && (
+        <input
+          type="hidden"
+          name="researchPostCount"
+          value={researchPostCount}
+        />
+      )}
+
+      {researchMeasuredCount && (
+        <input
+          type="hidden"
+          name="researchMeasuredCount"
+          value={researchMeasuredCount}
+        />
+      )}
+
+      {researchEvidence && (
+        <input
+          type="hidden"
+          name="researchEvidence"
+          value={researchEvidence}
+        />
+      )}
+    </>
+  );
+}
+
 export default async function StrategiesPage({
   searchParams,
 }: StrategiesPageProps) {
@@ -124,10 +370,6 @@ export default async function StrategiesPage({
     totalExperiments,
     researchCreator,
   ] = await Promise.all([
-    /*
-     * Normal strategy library:
-     * only strategies matching the user's niche AND follower stage.
-     */
     prisma.strategy.findMany({
       where: {
         nicheTags: {
@@ -142,19 +384,6 @@ export default async function StrategiesPage({
       },
     }),
 
-    /*
-     * Research strategy pool:
-     *
-     * When the user arrives from Creator Intelligence, the research
-     * pattern is the primary signal. We therefore allow strategies
-     * matching the user's niche even if their stageTags do not include
-     * the current follower stage.
-     *
-     * This prevents a valid research-derived strategy from being
-     * filtered out before the matcher sees it.
-     *
-     * This is READ-ONLY. No database records are modified.
-     */
     researchEnabled && researchPattern
       ? prisma.strategy.findMany({
           where: {
@@ -214,21 +443,6 @@ export default async function StrategiesPage({
         researchEvidence
     );
 
-  /*
-   * IMPORTANT:
-   *
-   * In research mode, the matcher receives the research candidate pool,
-   * not only the profile-filtered strategies.
-   *
-   * This allows:
-   *
-   * Contrarian research
-   *       ↓
-   * Contrarian Take Fridays
-   *
-   * even when that strategy's stageTags do not include the user's
-   * current follower stage.
-   */
   const strategyCandidates = hasResearchContext
     ? researchCandidateStrategies
     : profileStrategies;
@@ -242,6 +456,12 @@ export default async function StrategiesPage({
             description: strategy.description,
             nicheTags: strategy.nicheTags,
             stageTags: strategy.stageTags,
+            hypothesisTemplate: strategy.hypothesisTemplate,
+            protocolTemplate: strategy.protocolTemplate,
+            recommendedDurationDays: strategy.recommendedDurationDays,
+            recommendedPostCount: strategy.recommendedPostCount,
+            primaryMetric: strategy.primaryMetric,
+            successThresholdPercent: strategy.successThresholdPercent,
           })),
           {
             pattern: researchPattern,
@@ -253,13 +473,6 @@ export default async function StrategiesPage({
   const recommendedStrategyId =
     recommendedStrategy?.strategy.id ?? null;
 
-  /*
-   * Normal library remains profile-filtered.
-   *
-   * If the research recommendation is not already in the normal
-   * profile library, it is simply shown as the research recommendation
-   * above and is not duplicated below.
-   */
   const otherStrategies = recommendedStrategyId
     ? profileStrategies.filter(
         (strategy) => strategy.id !== recommendedStrategyId
@@ -301,9 +514,7 @@ export default async function StrategiesPage({
                 <Target size={12} className="text-violet-400" />
 
                 <span className="text-[10px] text-slate-500">
-                  {hasResearchContext
-                    ? "Matched to your research"
-                    : "Matched to your profile"}
+                  {user.followerStage}
                 </span>
               </div>
             </div>
@@ -354,10 +565,7 @@ export default async function StrategiesPage({
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-400/[0.07]">
-                      <Sparkles
-                        size={17}
-                        className="text-violet-400"
-                      />
+                      <Sparkles size={17} className="text-violet-400" />
                     </div>
 
                     <div>
@@ -373,81 +581,33 @@ export default async function StrategiesPage({
                       </h2>
 
                       <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-                        You arrived here from Creator Intelligence. Use
-                        this finding as research context when choosing the
-                        strategy you want to test on your own account.
+                        You arrived here from Creator Intelligence. Use this
+                        finding as research context when choosing the strategy
+                        you want to test on your own account.
                       </p>
+
+                      {researchCreator && (
+                        <p className="mt-2 text-[10px] text-slate-600">
+                          Research source:{" "}
+                          <span className="text-slate-400">
+                            {researchCreator.name}
+                          </span>{" "}
+                          @{researchCreator.handle}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <span
-                    className={`inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-2.5 py-1.5 text-[9px] font-medium capitalize ${signalClasses.badge}`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${signalClasses.dot}`}
-                    />
+                  {recommendedStrategy && (
+                    <div className="flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-[9px] font-medium">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${signalClasses.dot}`}
+                      />
 
-                    {researchSignal ?? "research"} signal
-                  </span>
-                </div>
-
-                <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
-                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
-                      Pattern
-                    </div>
-
-                    <div className="mt-1 text-xs font-medium text-slate-300">
-                      {researchPattern}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
-                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
-                      Evidence
-                    </div>
-
-                    <div className="mt-1 text-xs font-medium text-slate-300">
-                      {researchMeasuredCount ?? "—"} measured /{" "}
-                      {researchPostCount ?? "—"} posts
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
-                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
-                      Signal
-                    </div>
-
-                    <div className="mt-1 text-xs font-medium capitalize text-slate-300">
-                      {researchSignal ?? "—"}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-2.5">
-                    <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
-                      Source
-                    </div>
-
-                    <div className="mt-1 truncate text-xs font-medium text-slate-300">
-                      {researchCreator
-                        ? `${researchCreator.name} (@${researchCreator.handle})`
-                        : "Creator research"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-slate-600">
-                  {researchEvidence && (
-                    <span>{researchEvidence}</span>
-                  )}
-
-                  {researchDimension && (
-                    <span>
-                      Dimension:{" "}
-                      <span className="text-slate-500">
-                        {researchDimension}
+                      <span className={signalClasses.badge}>
+                        {researchSignal ?? "research signal"}
                       </span>
-                    </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -455,42 +615,38 @@ export default async function StrategiesPage({
           )}
 
           {/* Research recommendation */}
-          {hasResearchContext && recommendedStrategy && (
-            <section className="relative mb-9 overflow-hidden rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.025]">
-              <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-emerald-400/[0.05] blur-[80px]" />
-
+          {recommendedStrategy && (
+            <section className="relative mb-9 overflow-hidden rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.018]">
               <div className="relative p-5 sm:p-6">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-400/15 bg-emerald-400/[0.06]">
-                      <FlaskConical
-                        size={17}
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Check
+                        size={13}
                         className="text-emerald-400"
                       />
+
+                      <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-emerald-400/70">
+                        Research-backed recommendation
+                      </span>
                     </div>
 
-                    <div>
-                      <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-emerald-400/70">
-                        Recommended experiment
-                      </div>
+                    <h2
+                      className="text-xl font-semibold tracking-[-0.025em] text-white"
+                      style={{ fontFamily: "Fraunces, serif" }}
+                    >
+                      {recommendedStrategy.strategy.title}
+                    </h2>
 
-                      <h2
-                        className="text-xl font-semibold tracking-[-0.025em] text-white"
-                        style={{ fontFamily: "Fraunces, serif" }}
-                      >
-                        {recommendedStrategy.strategy.title}
-                      </h2>
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                      {recommendedStrategy.reason}
+                    </p>
 
-                      <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-                        {recommendedStrategy.reason}
-                      </p>
-
-                      <p className="mt-3 max-w-2xl text-[10px] leading-5 text-slate-600">
-                        The match is based on the observed research
-                        pattern. It is a suggested test, not a claim that
-                        the strategy will work for your audience.
-                      </p>
-                    </div>
+                    <p className="mt-3 max-w-2xl text-[10px] leading-5 text-slate-600">
+                      The match is based on the observed research pattern. It
+                      is a suggested test, not a claim that the strategy will
+                      work for your audience.
+                    </p>
                   </div>
 
                   {trackedStrategyIds.has(
@@ -504,80 +660,63 @@ export default async function StrategiesPage({
                       <ArrowRight size={12} />
                     </Link>
                   ) : (
-                    <form
-                      action={startTracking}
-                      className="shrink-0"
-                    >
-                      <input
-                        type="hidden"
-                        name="strategyId"
-                        value={recommendedStrategy.strategy.id}
-                      />
-
-                      {researchCreatorId && (
-                        <input
-                          type="hidden"
-                          name="researchCreatorId"
-                          value={researchCreatorId}
-                        />
-                      )}
-
-                      {researchDimension && (
-                        <input
-                          type="hidden"
-                          name="researchDimension"
-                          value={researchDimension}
-                        />
-                      )}
-
-                      {researchPattern && (
-                        <input
-                          type="hidden"
-                          name="researchPattern"
-                          value={researchPattern}
-                        />
-                      )}
-
-                      {researchSignal && (
-                        <input
-                          type="hidden"
-                          name="researchSignal"
-                          value={researchSignal}
-                        />
-                      )}
-
-                      {researchPostCount && (
-                        <input
-                          type="hidden"
-                          name="researchPostCount"
-                          value={researchPostCount}
-                        />
-                      )}
-
-                      {researchMeasuredCount && (
-                        <input
-                          type="hidden"
-                          name="researchMeasuredCount"
-                          value={researchMeasuredCount}
-                        />
-                      )}
-
-                      {researchEvidence && (
-                        <input
-                          type="hidden"
-                          name="researchEvidence"
-                          value={researchEvidence}
-                        />
-                      )}
-
-                      <button
-                        type="submit"
-                        className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 py-3 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99] sm:w-auto"
-                      >
-                        Start this experiment
+                    <details className="shrink-0">
+                      <summary className="flex cursor-pointer list-none items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 py-3 text-[10px] font-semibold text-white transition-all hover:bg-violet-400">
+                        Define experiment
                         <ArrowRight size={12} />
-                      </button>
-                    </form>
+                      </summary>
+
+                      <form
+                        action={startTracking}
+                        className="mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-4"
+                      >
+                        <input
+                          type="hidden"
+                          name="strategyId"
+                          value={recommendedStrategy.strategy.id}
+                        />
+
+                        <ResearchHiddenFields
+                          researchCreatorId={researchCreatorId}
+                          researchDimension={researchDimension}
+                          researchPattern={researchPattern}
+                          researchSignal={researchSignal}
+                          researchPostCount={researchPostCount}
+                          researchMeasuredCount={researchMeasuredCount}
+                          researchEvidence={researchEvidence}
+                        />
+
+                        <ExperimentDefinitionFields
+                          prefix="recommended"
+                          hypothesisTemplate={
+                            recommendedStrategy.strategy.hypothesisTemplate
+                          }
+                          protocolTemplate={
+                            recommendedStrategy.strategy.protocolTemplate
+                          }
+                          recommendedDurationDays={
+                            recommendedStrategy.strategy.recommendedDurationDays
+                          }
+                          recommendedPostCount={
+                            recommendedStrategy.strategy.recommendedPostCount
+                          }
+                          primaryMetric={
+                            recommendedStrategy.strategy.primaryMetric
+                          }
+                          successThresholdPercent={
+                            recommendedStrategy.strategy.successThresholdPercent
+                          }
+                        />
+
+                        <button
+                          type="submit"
+                          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99]"
+                        >
+                          Start this experiment
+                          <ArrowRight size={12} />
+                        </button>
+                      </form>
+                    </details>
                   )}
                 </div>
               </div>
@@ -694,55 +833,57 @@ export default async function StrategiesPage({
                 return (
                   <article
                     key={strategy.id}
-                    className={`group relative flex flex-col overflow-hidden rounded-xl border bg-[#0d0f15] transition-all ${
-                      isTracking
-                        ? "border-emerald-400/15"
-                        : "border-white/[0.06] hover:border-violet-400/15"
-                    }`}
+                    className="overflow-hidden rounded-xl border border-white/[0.06] bg-[#0d0f15]"
                   >
-                    <div className="flex flex-1 flex-col p-5 sm:p-6">
+                    <div className="p-5 sm:p-6">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/10 bg-violet-400/[0.05]">
+                        <div className="min-w-0">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {isTracking && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1 text-[9px] font-medium text-emerald-400">
+                                <Check size={9} />
+                                Active
+                              </span>
+                            )}
+
+                            <span className="text-[9px] font-medium uppercase tracking-[0.12em] text-slate-700">
+                              Strategy
+                            </span>
+                          </div>
+
+                          <h2
+                            className="text-xl font-semibold tracking-[-0.025em] text-white"
+                            style={{ fontFamily: "Fraunces, serif" }}
+                          >
+                            {strategy.title}
+                          </h2>
+
+                          <p className="mt-2 max-w-xl text-xs leading-5 text-slate-500">
+                            {strategy.description}
+                          </p>
+                        </div>
+
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-400/10 bg-violet-400/[0.05]">
                           <FlaskConical
                             size={15}
                             className="text-violet-400"
                             strokeWidth={1.7}
                           />
                         </div>
-
-                        {isTracking ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1.5 text-[9px] font-medium text-emerald-300">
-                            <Check size={10} />
-                            Currently tracking
-                          </span>
-                        ) : (
-                          <span className="rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[9px] font-medium text-slate-600">
-                            Experiment
-                          </span>
-                        )}
                       </div>
 
-                      <h3
-                        className="mt-5 text-xl font-semibold tracking-[-0.025em] text-white"
-                        style={{ fontFamily: "Fraunces, serif" }}
-                      >
-                        {strategy.title}
-                      </h3>
-
-                      <p className="mt-2 flex-1 text-xs leading-5 text-slate-500">
-                        {strategy.description}
-                      </p>
-
-                      <div className="mt-5 flex flex-wrap gap-1.5">
-                        {tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-white/[0.05] bg-white/[0.015] px-2 py-1 text-[8px] font-medium text-slate-600"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      {tags.length > 0 && (
+                        <div className="mt-5 flex flex-wrap gap-1.5">
+                          {tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-[9px] text-slate-600"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* CTA */}
                       <div className="mt-6 border-t border-white/[0.05] pt-4">
@@ -755,67 +896,61 @@ export default async function StrategiesPage({
                             <ArrowRight size={12} />
                           </Link>
                         ) : (
-                          <form action={startTracking}>
-                            <input
-                              type="hidden"
-                              name="strategyId"
-                              value={strategy.id}
-                            />
-
-                            {hasResearchContext && (
-                              <>
-                                <input
-                                  type="hidden"
-                                  name="researchCreatorId"
-                                  value={researchCreatorId ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchPattern"
-                                  value={researchPattern ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchDimension"
-                                  value={researchDimension ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchSignal"
-                                  value={researchSignal ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchPostCount"
-                                  value={researchPostCount ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchMeasuredCount"
-                                  value={researchMeasuredCount ?? ""}
-                                />
-
-                                <input
-                                  type="hidden"
-                                  name="researchEvidence"
-                                  value={researchEvidence ?? ""}
-                                />
-                              </>
-                            )}
-
-                            <button
-                              type="submit"
-                              className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99]"
-                            >
-                              Start experiment
+                          <details>
+                            <summary className="flex cursor-pointer list-none items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99]">
+                              Define experiment
                               <ArrowRight size={12} />
-                            </button>
-                          </form>
+                            </summary>
+
+                            <form
+                              action={startTracking}
+                              className="mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-4"
+                            >
+                              <input
+                                type="hidden"
+                                name="strategyId"
+                                value={strategy.id}
+                              />
+
+                              {hasResearchContext && (
+                                <ResearchHiddenFields
+                                  researchCreatorId={researchCreatorId}
+                                  researchDimension={researchDimension}
+                                  researchPattern={researchPattern}
+                                  researchSignal={researchSignal}
+                                  researchPostCount={researchPostCount}
+                                  researchMeasuredCount={
+                                    researchMeasuredCount
+                                  }
+                                  researchEvidence={researchEvidence}
+                                />
+                              )}
+
+                              <ExperimentDefinitionFields
+                                prefix={`strategy-${strategy.id}`}
+                                hypothesisTemplate={strategy.hypothesisTemplate}
+                                protocolTemplate={strategy.protocolTemplate}
+                                recommendedDurationDays={
+                                  strategy.recommendedDurationDays
+                                }
+                                recommendedPostCount={
+                                  strategy.recommendedPostCount
+                                }
+                                primaryMetric={strategy.primaryMetric}
+                                successThresholdPercent={
+                                  strategy.successThresholdPercent
+                                }
+                              />
+
+                              <button
+                                type="submit"
+                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-2.5 text-[10px] font-semibold text-white transition-all hover:bg-violet-400 active:scale-[0.99]"
+                              >
+                                Start experiment
+                                <ArrowRight size={12} />
+                              </button>
+                            </form>
+                          </details>
                         )}
                       </div>
                     </div>

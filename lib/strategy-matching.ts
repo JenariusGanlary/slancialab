@@ -4,6 +4,14 @@ export type StrategyMatchInput = {
   description: string;
   nicheTags: string[];
   stageTags: string[];
+
+  // Reusable experiment template
+  hypothesisTemplate: string | null;
+  protocolTemplate: string | null;
+  recommendedDurationDays: number | null;
+  recommendedPostCount: number | null;
+  primaryMetric: string | null;
+  successThresholdPercent: number | null;
 };
 
 export type StrategyMatchContext = {
@@ -194,21 +202,16 @@ function getDimensionBonus(
 
   if (
     dimension === "structure" &&
-    (
-      title.includes("list") ||
-      title.includes("thread")
-    )
+    (title.includes("list") || title.includes("thread"))
   ) {
     return 20;
   }
 
   if (
     dimension === "content style" &&
-    (
-      title.includes("build") ||
+    (title.includes("build") ||
       title.includes("story") ||
-      title.includes("public")
-    )
+      title.includes("public"))
   ) {
     return 10;
   }
