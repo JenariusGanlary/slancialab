@@ -152,10 +152,18 @@ export async function GET(request: NextRequest) {
     );
 
     if (!tokenResponse.ok) {
+      const errorBody = await tokenResponse.text();
+
+      console.error("X token exchange failed:", {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        body: errorBody,
+      });
+
       return redirectToSettings(
         request,
         "error",
-        "X token exchange failed."
+        `X token exchange failed (${tokenResponse.status}). Check the server logs.`
       );
     }
 
@@ -166,6 +174,21 @@ export async function GET(request: NextRequest) {
       !tokenData.access_token ||
       !tokenData.expires_in
     ) {
+      console.error(
+        "X returned an invalid token response:",
+        {
+          token_type: tokenData.token_type,
+          expires_in: tokenData.expires_in,
+          scope: tokenData.scope,
+          hasAccessToken: Boolean(
+            tokenData.access_token
+          ),
+          hasRefreshToken: Boolean(
+            tokenData.refresh_token
+          ),
+        }
+      );
+
       return redirectToSettings(
         request,
         "error",
@@ -185,10 +208,18 @@ export async function GET(request: NextRequest) {
     );
 
     if (!userResponse.ok) {
+      const errorBody = await userResponse.text();
+
+      console.error("X user lookup failed:", {
+        status: userResponse.status,
+        statusText: userResponse.statusText,
+        body: errorBody,
+      });
+
       return redirectToSettings(
         request,
         "error",
-        "Could not retrieve the X account."
+        `Could not retrieve the X account (${userResponse.status}).`
       );
     }
 
@@ -200,6 +231,11 @@ export async function GET(request: NextRequest) {
       !xUser.data.username ||
       !xUser.data.name
     ) {
+      console.error(
+        "X returned incomplete account information:",
+        xUser
+      );
+
       return redirectToSettings(
         request,
         "error",
