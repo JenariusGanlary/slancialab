@@ -5,9 +5,25 @@ import { updateProfile } from "./actions";
 import { SettingsForm } from "./SettingsForm";
 import { AppLayout } from "../components/AppLayout";
 import { SignOutButton } from "@clerk/nextjs";
-import { Mail, SlidersHorizontal, UserRound, LogOut } from "lucide-react";
+import {
+  Mail,
+  SlidersHorizontal,
+  UserRound,
+  LogOut,
+  Link2,
+  ExternalLink,
+} from "lucide-react";
 
-export default async function SettingsPage() {
+type SettingsPageProps = {
+  searchParams: Promise<{
+    x?: string;
+    message?: string;
+  }>;
+};
+
+export default async function SettingsPage({
+  searchParams,
+}: SettingsPageProps) {
   const { userId } = await auth();
 
   if (!userId) {
@@ -16,6 +32,18 @@ export default async function SettingsPage() {
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
+    include: {
+      xAccount: {
+        select: {
+          username: true,
+          displayName: true,
+          profileImageUrl: true,
+          xUserId: true,
+          scopes: true,
+          tokenExpiresAt: true,
+        },
+      },
+    },
   });
 
   if (!user) {
@@ -36,6 +64,13 @@ export default async function SettingsPage() {
   const stages = Array.from(
     new Set(strategies.flatMap((strategy) => strategy.stageTags))
   ).sort();
+
+  const params = await searchParams;
+
+  const xStatus = params.x;
+  const xMessage = params.message;
+
+  const xAccount = user.xAccount;
 
   return (
     <AppLayout>
@@ -155,6 +190,119 @@ export default async function SettingsPage() {
                   Active
                 </span>
               </div>
+            </div>
+          </section>
+
+          {/* X account section */}
+          <section className="mt-6 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0D0F13]/60">
+            <div className="border-b border-white/[0.05] px-6 py-5 md:px-7">
+              <div className="flex items-start gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/[0.05]">
+                  <Link2 className="h-4 w-4 text-sky-300" />
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-sky-300/70">
+                    Creator data
+                  </p>
+
+                  <h2
+                    className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[#E7E3DB]"
+                    style={{ fontFamily: "Fraunces, serif" }}
+                  >
+                    X account
+                  </h2>
+
+                  <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#626A76]">
+                    Connect your X account so Slancialab can work with your
+                    creator data and experiment performance.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-6 md:px-7">
+              {xStatus === "success" && (
+                <div className="mb-5 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.04] px-4 py-3">
+                  <p className="text-xs text-emerald-300/80">
+                    X account connected successfully.
+                  </p>
+                </div>
+              )}
+
+              {xStatus === "error" && (
+                <div className="mb-5 rounded-xl border border-red-400/10 bg-red-400/[0.04] px-4 py-3">
+                  <p className="text-xs text-red-300/80">
+                    {xMessage ||
+                      "Something went wrong while connecting your X account."}
+                  </p>
+                </div>
+              )}
+
+              {xAccount ? (
+                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-4">
+                    {xAccount.profileImageUrl ? (
+                      <img
+                        src={xAccount.profileImageUrl}
+                        alt=""
+                        className="h-11 w-11 rounded-full border border-white/[0.08]"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-sm font-medium text-[#8A919D]">
+                        X
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-sm font-medium text-[#D8D4CC]">
+                        {xAccount.displayName}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[#626A76]">
+                        @{xAccount.username}
+                      </p>
+
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+
+                        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-emerald-300/70">
+                          Connected
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <a
+                    href="/api/auth/x/authorize"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/[0.08] px-4 py-2.5 text-xs font-medium text-[#858C97] transition-all hover:border-sky-400/20 hover:bg-sky-400/[0.04] hover:text-sky-300"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Reconnect X
+                  </a>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm text-[#C7C3BB]">
+                      No X account connected
+                    </p>
+
+                    <p className="mt-1 max-w-xl text-xs leading-5 text-[#565D68]">
+                      Connect your account to unlock X-based research,
+                      publishing, and performance measurement.
+                    </p>
+                  </div>
+
+                  <a
+                    href="/api/auth/x/authorize"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/[0.04] px-4 py-2.5 text-xs font-medium text-sky-300 transition-all hover:border-sky-300/30 hover:bg-sky-400/[0.08]"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Connect X
+                  </a>
+                </div>
+              )}
             </div>
           </section>
 

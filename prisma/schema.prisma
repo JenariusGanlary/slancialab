@@ -102,6 +102,34 @@ model User {
   createdAt     DateTime @default(now())
 
   experiments Experiment[]
+  xAccount    XAccount?
+}
+
+model XAccount {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  // X account identity
+  xUserId        String @unique
+  username       String?
+  displayName    String?
+  profileImageUrl String?
+
+  // OAuth tokens
+  // These values must be encrypted before being stored.
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+
+  // OAuth token lifecycle
+  tokenExpiresAt DateTime?
+
+  // OAuth scopes granted to this connection
+  scopes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Strategy {
@@ -197,15 +225,15 @@ model ExperimentResult {
   experimentId String @unique
 
   // Final evaluation snapshot
-  status                    String
-  primaryMetric             String
-  postsMeasured             Int
-  baselineAverage           Float?
-  baselineSampleSize        Int?
-  experimentAverage         Float?
-  absoluteChange             Float?
-  percentageChange           Float?
-  successThresholdPercent   Int?
+  status                  String
+  primaryMetric           String
+  postsMeasured           Int
+  baselineAverage         Float?
+  baselineSampleSize      Int?
+  experimentAverage       Float?
+  absoluteChange          Float?
+  percentageChange        Float?
+  successThresholdPercent Int?
 
   // Historical record timestamp
   recordedAt DateTime @default(now())
