@@ -16,6 +16,11 @@ type XTokenResponse = {
   refresh_token?: string;
 };
 
+type XTokenErrorResponse = {
+  error?: string;
+  error_description?: string;
+};
+
 type XUserResponse = {
   data?: {
     id: string;
@@ -160,10 +165,25 @@ export async function GET(request: NextRequest) {
         body: errorBody,
       });
 
+      let safeMessage = `X token exchange failed (${tokenResponse.status}).`;
+
+      try {
+        const parsed =
+          JSON.parse(errorBody) as XTokenErrorResponse;
+
+        if (parsed.error_description) {
+          safeMessage = `X: ${parsed.error_description}`;
+        } else if (parsed.error) {
+          safeMessage = `X: ${parsed.error}`;
+        }
+      } catch {
+        // Keep the generic message if X does not return JSON.
+      }
+
       return redirectToSettings(
         request,
         "error",
-        `X token exchange failed (${tokenResponse.status}). Check the server logs.`
+        safeMessage
       );
     }
 
