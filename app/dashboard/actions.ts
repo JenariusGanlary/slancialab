@@ -137,6 +137,16 @@ export async function updateExperimentStatus(formData: FormData) {
           reposts: true,
         },
       },
+      checkIns: {
+        select: {
+          id: true,
+          followerCount: true,
+          loggedAt: true,
+        },
+        orderBy: {
+          loggedAt: "asc",
+        },
+      },
     },
   });
 
@@ -182,6 +192,7 @@ export async function updateExperimentStatus(formData: FormData) {
         experiment.successThresholdPercent,
       posts,
       baselineAverage: experiment.baselineAverage,
+      followerMeasurements: experiment.checkIns,
     });
 
     /*

@@ -25,6 +25,7 @@ import {
 
 import { prisma } from "@/lib/prisma";
 import { evaluateExperiment } from "@/lib/experiment-evaluation";
+import { calculateObservedMetrics } from "@/lib/experiment-observed-metrics";
 import {
   logCheckIn,
   updateExperimentStatus,
@@ -125,6 +126,15 @@ function getPrimaryMetricLabel(metric: string | null) {
   if (metric === "follower_growth") return "Follower growth";
 
   return "Not configured";
+}
+
+function getObservedMetricLabel(metric: string) {
+  if (metric === "views") return "Views";
+  if (metric === "likes") return "Likes";
+  if (metric === "replies") return "Replies";
+  if (metric === "reposts") return "Reposts";
+
+  return metric;
 }
 
 function getEvaluationStatusLabel(status: string) {
@@ -305,9 +315,7 @@ export default async function ExperimentDetailPage({
     0
   );
 
-  const evaluation = evaluateExperiment({
-    primaryMetric: experiment.primaryMetric,
-    successThresholdPercent: experiment.successThresholdPercent,
+  const observedMetrics = calculateObservedMetrics({
     posts: experiment.posts.map((post) => ({
       id: post.id,
       metrics: {
@@ -317,8 +325,31 @@ export default async function ExperimentDetailPage({
         reposts: post.reposts,
       },
     })),
-    baselineAverage: experiment.baselineAverage,
+    followerMeasurements: experiment.checkIns.map((checkIn) => ({
+      followerCount: checkIn.followerCount,
+      loggedAt: checkIn.loggedAt,
+    })),
   });
+
+  const evaluation = evaluateExperiment({
+  primaryMetric: experiment.primaryMetric,
+  successThresholdPercent: experiment.successThresholdPercent,
+  posts: experiment.posts.map((post) => ({
+    id: post.id,
+    metrics: {
+      views: post.views,
+      likes: post.likes,
+      replies: post.replies,
+      reposts: post.reposts,
+    },
+  })),
+  baselineAverage: experiment.baselineAverage,
+  followerMeasurements: experiment.checkIns.map((checkIn) => ({
+    id: checkIn.id,
+    followerCount: checkIn.followerCount,
+    loggedAt: checkIn.loggedAt,
+  })),
+});
 
   const canSetBaseline =
     experiment.status !== "completed" &&
@@ -1150,6 +1181,161 @@ export default async function ExperimentDetailPage({
                 </form>
               </div>
             )}
+          </section>
+
+          {/* Observed performance */}
+          <section className="mt-8 overflow-hidden rounded-2xl border border-emerald-400/[0.10] bg-emerald-400/[0.015]">
+            <div className="border-b border-white/[0.05] px-5 py-4 md:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp
+                      size={13}
+                      className="text-emerald-400"
+                    />
+
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-400/70">
+                      Observed evidence
+                    </span>
+                  </div>
+
+                  <h2
+                    className="mt-2 text-xl font-semibold tracking-[-0.02em] text-white"
+                    style={{ fontFamily: "Fraunces, serif" }}
+                  >
+                    Observed performance
+                  </h2>
+
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+                    All performance measurements recorded during this experiment.
+                    These observations are separate from the primary metric used
+                    to evaluate experiment success.
+                  </p>
+                </div>
+
+                <span className="text-[10px] text-slate-700">
+                  {experiment.posts.length} posts · {
+                    observedMetrics.followerGrowth.measurements
+                  } follower measurements
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-2 border-b border-white/[0.05] p-4 sm:grid-cols-2 lg:grid-cols-4 md:p-5">
+              {observedMetrics.postMetrics.map((summary) => (
+                <div
+                  key={summary.metric}
+                  className="rounded-lg border border-white/[0.05] bg-white/[0.015] px-3 py-3"
+                >
+                  <div className="text-[9px] uppercase tracking-[0.12em] text-slate-700">
+                    {getObservedMetricLabel(summary.metric)}
+                  </div>
+
+                  <div className="mt-1.5 text-sm font-medium text-slate-300">
+                    {summary.average !== null
+                      ? formatNumber(Math.round(summary.average))
+                      : "—"}
+                  </div>
+
+                  <div className="mt-1 text-[9px] text-slate-700">
+                    {summary.postsWithMetric} {
+                      summary.postsWithMetric === 1 ? "post" : "posts"
+                    } measured
+                  </div>
+
+                  <div className="mt-2 text-[9px] text-slate-600">
+                    {summary.total !== null
+                      ? `Total ${formatNumber(summary.total)}`
+                      : "No measurement yet"}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 md:p-5">
+              <div className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp
+                    size={13}
+                    className="text-violet-400"
+                  />
+
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-700">
+                    Follower outcome
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                      Measurements
+                    </div>
+
+                    <div className="mt-1 text-sm font-medium text-slate-300">
+                      {observedMetrics.followerGrowth.measurements}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                      Starting followers
+                    </div>
+
+                    <div className="mt-1 text-sm font-medium text-slate-300">
+                      {observedMetrics.followerGrowth.startingFollowers !== null
+                        ? formatNumber(
+                            observedMetrics.followerGrowth.startingFollowers
+                          )
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                      Latest followers
+                    </div>
+
+                    <div className="mt-1 text-sm font-medium text-slate-300">
+                      {observedMetrics.followerGrowth.latestFollowers !== null
+                        ? formatNumber(
+                            observedMetrics.followerGrowth.latestFollowers
+                          )
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[8px] uppercase tracking-[0.12em] text-slate-700">
+                      Observed change
+                    </div>
+
+                    <div className="mt-1 text-sm font-medium text-slate-300">
+                      {observedMetrics.followerGrowth.absoluteChange !== null
+                        ? `${
+                            observedMetrics.followerGrowth.absoluteChange >= 0
+                              ? "+"
+                              : ""
+                          }${formatNumber(
+                            observedMetrics.followerGrowth.absoluteChange
+                          )}`
+                        : "—"}
+                    </div>
+
+                    <div className="mt-1 text-[9px] text-slate-600">
+                      {observedMetrics.followerGrowth.percentageChange !== null
+                        ? `${
+                            observedMetrics.followerGrowth.percentageChange >= 0
+                              ? "+"
+                              : ""
+                          }${observedMetrics.followerGrowth.percentageChange.toFixed(
+                            1
+                          )}%`
+                        : "Need another measurement"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* Experiment baseline */}

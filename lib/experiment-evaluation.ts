@@ -30,10 +30,17 @@ export type ExperimentPostForEvaluation = {
   metrics: ExperimentPostMetrics;
 };
 
+export type ExperimentFollowerMeasurement = {
+  id: string;
+  followerCount: number;
+  loggedAt: Date;
+};
+
 export type ExperimentEvaluationInput = {
   primaryMetric: string | null | undefined;
   successThresholdPercent: number | null | undefined;
   posts: ExperimentPostForEvaluation[];
+  followerMeasurements?: ExperimentFollowerMeasurement[];
   baselineAverage?: number | null;
 };
 
@@ -62,9 +69,10 @@ function getMetricValue(
     return null;
   }
 
-  const value = post.metrics[metric === "engagement_rate"
-    ? "engagementRate"
-    : metric];
+  const value =
+    post.metrics[
+      metric === "engagement_rate" ? "engagementRate" : metric
+    ];
 
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return null;
@@ -102,6 +110,136 @@ function calculatePercentageChange(
   return ((current - baseline) / baseline) * 100;
 }
 
+function evaluateFollowerGrowth(
+  input: ExperimentEvaluationInput,
+  totalPosts: number
+): ExperimentEvaluationResult {
+  const measurements = [...(input.followerMeasurements ?? [])]
+    .filter(
+      (measurement) =>
+        typeof measurement.followerCount === "number" &&
+        Number.isSafeInteger(measurement.followerCount) &&
+        measurement.followerCount >= 0 &&
+        measurement.loggedAt instanceof Date &&
+        !Number.isNaN(measurement.loggedAt.getTime())
+    )
+    .sort(
+      (a, b) =>
+        a.loggedAt.getTime() - b.loggedAt.getTime()
+    );
+
+  const threshold =
+    typeof input.successThresholdPercent === "number" &&
+    Number.isFinite(input.successThresholdPercent) &&
+    input.successThresholdPercent >= 0
+      ? input.successThresholdPercent
+      : null;
+
+  /*
+   * Follower growth requires at least two measurements:
+   *
+   * first CheckIn  -> baseline
+   * latest CheckIn -> experiment result
+   *
+   * We intentionally do not use a single follower count as both
+   * baseline and result because that would produce no measurable change.
+   */
+  if (measurements.length < 2) {
+    return {
+      status: "insufficient_data",
+      primaryMetric: "follower_growth",
+      postsWithMetric: 0,
+      totalPosts,
+      baselineAverage: null,
+      experimentAverage: null,
+      absoluteChange: null,
+      percentageChange: null,
+      successThresholdPercent: threshold,
+      message:
+        "At least two follower measurements are required to evaluate follower growth.",
+    };
+  }
+
+  const baselineFollowers = measurements[0].followerCount;
+  const latestFollowers =
+    measurements[measurements.length - 1].followerCount;
+
+  /*
+   * For follower_growth:
+   *
+   * baselineAverage   = starting follower count
+   * experimentAverage = latest follower count
+   * absoluteChange    = latest - starting
+   * percentageChange  = change relative to starting followers
+   *
+   * This represents observed follower change during the experiment.
+   * It does not establish that the experiment caused that change.
+   */
+  const absoluteChange = latestFollowers - baselineFollowers;
+
+  const percentageChange = calculatePercentageChange(
+    baselineFollowers,
+    latestFollowers
+  );
+
+  if (percentageChange === null) {
+    return {
+      status: "insufficient_data",
+      primaryMetric: "follower_growth",
+      postsWithMetric: measurements.length,
+      totalPosts,
+      baselineAverage: baselineFollowers,
+      experimentAverage: latestFollowers,
+      absoluteChange,
+      percentageChange: null,
+      successThresholdPercent: threshold,
+      message:
+        "The starting follower count is zero, so percentage follower growth cannot be calculated.",
+    };
+  }
+
+  if (threshold === null) {
+    return {
+      status: "insufficient_data",
+      primaryMetric: "follower_growth",
+      postsWithMetric: measurements.length,
+      totalPosts,
+      baselineAverage: baselineFollowers,
+      experimentAverage: latestFollowers,
+      absoluteChange,
+      percentageChange,
+      successThresholdPercent: null,
+      message:
+        "A valid success threshold is required to evaluate follower growth.",
+    };
+  }
+
+  const status =
+    percentageChange >= threshold
+      ? "met_threshold"
+      : "below_threshold";
+
+  return {
+    status,
+    primaryMetric: "follower_growth",
+    postsWithMetric: measurements.length,
+    totalPosts,
+    baselineAverage: baselineFollowers,
+    experimentAverage: latestFollowers,
+    absoluteChange,
+    percentageChange,
+    successThresholdPercent: threshold,
+    message:
+      status === "met_threshold"
+        ? `Observed follower growth of ${percentageChange.toFixed(
+            2
+          )}% met the ${threshold}% success threshold.`
+        : `Observed follower growth of ${percentageChange.toFixed(
+            2
+          )}% is below the ${threshold}% success threshold.`,
+  };
+}
+
 export function evaluateExperiment(
   input: ExperimentEvaluationInput
 ): ExperimentEvaluationResult {
@@ -120,35 +258,17 @@ export function evaluateExperiment(
       absoluteChange: null,
       percentageChange: null,
       successThresholdPercent: null,
-      message: "A valid primary metric is required to evaluate this experiment.",
+      message:
+        "A valid primary metric is required to evaluate this experiment.",
     };
   }
 
   /*
-   * Follower growth is evaluated from experiment-level check-ins,
+   * Follower growth is evaluated from experiment-level CheckIns,
    * not individual ExperimentPost records.
-   *
-   * The post-based evaluator therefore intentionally does not
-   * calculate follower_growth yet.
    */
   if (metricValue === "follower_growth") {
-    return {
-      status: "insufficient_data",
-      primaryMetric: metricValue,
-      postsWithMetric: 0,
-      totalPosts,
-      baselineAverage: null,
-      experimentAverage: null,
-      absoluteChange: null,
-      percentageChange: null,
-      successThresholdPercent:
-        typeof input.successThresholdPercent === "number" &&
-        Number.isFinite(input.successThresholdPercent)
-          ? input.successThresholdPercent
-          : null,
-      message:
-        "Follower growth requires experiment-level follower measurements.",
-    };
+    return evaluateFollowerGrowth(input, totalPosts);
   }
 
   const values = input.posts
@@ -255,7 +375,9 @@ export function evaluateExperiment(
   }
 
   const status =
-    percentageChange >= threshold ? "met_threshold" : "below_threshold";
+    percentageChange >= threshold
+      ? "met_threshold"
+      : "below_threshold";
 
   return {
     status,
