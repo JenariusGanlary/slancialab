@@ -334,10 +334,15 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("X OAuth callback error:", error);
 
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Unknown server error.";
+
     return redirectToSettings(
       request,
       "error",
-      "Something went wrong while connecting X."
+      `X connection error: ${errorMessage}`
     );
   }
 }
