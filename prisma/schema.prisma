@@ -91,6 +91,12 @@ enum Personalization {
   GENERIC
 }
 
+enum XPostAnalysisStatus {
+  PENDING
+  ANALYZED
+  FAILED
+}
+
 model User {
   id            String   @id @default(cuid())
   clerkId       String   @unique
@@ -163,8 +169,53 @@ model XPost {
 
   xAccount XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
 
+  // Structured content analysis
+  analysis XPostAnalysis?
+
   @@index([xAccountId])
   @@index([publishedAt])
+}
+
+model XPostAnalysis {
+  id String @id @default(cuid())
+
+  // One analysis record per X post.
+  // The analysis can be replaced/re-run without modifying the raw XPost.
+  xPostId String @unique
+
+  status XPostAnalysisStatus @default(PENDING)
+
+  // Structured content attributes
+  hookType        HookType?
+  structure       ContentStructure?
+  topic           String?
+  tone            Tone?
+  format          ContentFormat?
+  ctaType         CtaType?
+  contentLength   Int?
+  contentStyle    ContentStyle?
+  stance          Stance?
+  sentenceType    SentenceType?
+  personalization Personalization?
+
+  // Confidence of the classification/analysis.
+  // This is descriptive model confidence, not performance confidence.
+  confidence Float?
+
+  // Versioning makes it possible to re-run analysis
+  // with a newer model without changing the raw post.
+  analysisVersion String?
+  analysisModel   String?
+
+  analyzedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  xPost XPost @relation(fields: [xPostId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([analyzedAt])
 }
 
 model Strategy {
@@ -188,13 +239,13 @@ model Strategy {
 }
 
 model Experiment {
-  id                String   @id @default(cuid())
+  id                String  @id @default(cuid())
   userId            String
   strategyId        String
   researchFindingId String?
 
-  status      String   @default("active")
-  startedAt   DateTime @default(now())
+  status      String    @default("active")
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
 
   hypothesis String?
@@ -209,9 +260,9 @@ model Experiment {
   baselineSampleSize Int?
   baselineCapturedAt DateTime?
 
-  user            User             @relation(fields: [userId], references: [id])
-  strategy        Strategy         @relation(fields: [strategyId], references: [id])
-  researchFinding ResearchFinding? @relation(fields: [researchFindingId], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+  strategy        Strategy          @relation(fields: [strategyId], references: [id])
+  researchFinding ResearchFinding?  @relation(fields: [researchFindingId], references: [id])
   checkIns        CheckIn[]
   posts           ExperimentPost[]
   result          ExperimentResult?
@@ -248,8 +299,8 @@ model ExperimentPost {
 }
 
 model ExperimentResult {
-  id           String   @id @default(cuid())
-  experimentId String   @unique
+  id           String @id @default(cuid())
+  experimentId String @unique
 
   status                  String
   primaryMetric           String
@@ -299,7 +350,7 @@ model ResearchFinding {
 }
 
 model CreatorPost {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   creatorId String
 
   patternTag  String?
