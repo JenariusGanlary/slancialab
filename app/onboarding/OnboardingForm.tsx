@@ -312,13 +312,16 @@ export function OnboardingForm({
     stages.length > 0 ? stages : FALLBACK_STAGES;
 
   const categories = useMemo(() => {
-    const existing = new Set(CORE_CATEGORIES.map((item) => item.name));
+    const existing = new Set(
+      CORE_CATEGORIES.map((item) => item.name)
+    );
 
     const databaseCategories: Category[] = niches
       .filter((niche) => !existing.has(niche))
       .map((niche) => ({
         name: niche,
-        description: "Explore creators and strategies in this space",
+        description:
+          "Explore creators and strategies in this space",
         symbol: "✦",
       }));
 
@@ -334,8 +337,12 @@ export function OnboardingForm({
 
     return categories.filter(
       (category) =>
-        category.name.toLowerCase().includes(normalizedSearch) ||
-        category.description.toLowerCase().includes(normalizedSearch)
+        category.name
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        category.description
+          .toLowerCase()
+          .includes(normalizedSearch)
     );
   }, [categories, search]);
 
@@ -460,6 +467,174 @@ export function OnboardingForm({
           transform: translateY(0);
         }
 
+        /*
+         * SHORT LAPTOP / 13-INCH DISPLAY MODE
+         *
+         * Targets shorter browser viewports such as:
+         * 1366x768
+         * 1280x720
+         * 1280x800 with browser chrome
+         *
+         * The design stays the same, but vertical spacing
+         * becomes more compact so the footer and primary
+         * controls remain visible.
+         */
+        @media (max-height: 820px) and (min-width: 1024px) {
+          .slancia-short-header {
+            padding-bottom: 12px !important;
+          }
+
+          .slancia-short-main {
+            padding-top: 22px !important;
+            padding-bottom: 18px !important;
+          }
+
+          .slancia-short-grid {
+            gap: 28px !important;
+            padding-top: 22px !important;
+          }
+
+          .slancia-short-left {
+            padding-right: 34px !important;
+          }
+
+          .slancia-short-eyebrow {
+            margin-bottom: 16px !important;
+          }
+
+          .slancia-short-heading {
+            font-size: clamp(3rem, 4.8vw, 4.8rem) !important;
+            line-height: .84 !important;
+          }
+
+          .slancia-short-description {
+            margin-top: 20px !important;
+            font-size: 13px !important;
+            line-height: 1.6 !important;
+          }
+
+          .slancia-short-secondary {
+            margin-top: 12px !important;
+            font-size: 11px !important;
+            line-height: 1.55 !important;
+          }
+
+          .slancia-short-editorial {
+            margin-top: 18px !important;
+          }
+
+          .slancia-short-step-header {
+            margin-bottom: 18px !important;
+            padding-bottom: 12px !important;
+          }
+
+          .slancia-short-step-title {
+            font-size: clamp(1.7rem, 2.8vw, 2.8rem) !important;
+          }
+
+          .slancia-short-step-copy {
+            margin-bottom: 16px !important;
+            font-size: 12px !important;
+            line-height: 1.55 !important;
+          }
+
+          .slancia-short-search {
+            margin-bottom: 12px !important;
+          }
+
+          .slancia-short-category-grid {
+            max-height: 38vh !important;
+            gap: 8px !important;
+          }
+
+          .slancia-short-category-card {
+            min-height: 94px !important;
+            padding: 14px !important;
+          }
+
+          .slancia-short-category-card .category-card-content {
+            margin-top: 14px !important;
+          }
+
+          .slancia-short-option-grid {
+            gap: 8px !important;
+          }
+
+          .slancia-short-option-card {
+            min-height: 94px !important;
+            padding: 16px !important;
+          }
+
+          .slancia-short-option-card .option-card-content {
+            margin-top: 16px !important;
+          }
+
+          .slancia-short-footer {
+            margin-top: 16px !important;
+            padding-top: 12px !important;
+          }
+
+          .slancia-short-footer-note {
+            margin-top: 10px !important;
+          }
+
+          .slancia-short-button {
+            height: 44px !important;
+          }
+        }
+
+        /*
+         * VERY SHORT LAPTOP MODE
+         *
+         * Prevents the composition from becoming vertically
+         * cramped on 720px-ish browser viewports.
+         */
+        @media (max-height: 740px) and (min-width: 1024px) {
+          .slancia-very-short-main {
+            padding-top: 14px !important;
+            padding-bottom: 12px !important;
+          }
+
+          .slancia-very-short-grid {
+            gap: 20px !important;
+            padding-top: 16px !important;
+          }
+
+          .slancia-very-short-left {
+            padding-right: 24px !important;
+          }
+
+          .slancia-very-short-heading {
+            font-size: clamp(2.7rem, 4vw, 4rem) !important;
+          }
+
+          .slancia-very-short-description {
+            margin-top: 14px !important;
+            font-size: 12px !important;
+          }
+
+          .slancia-very-short-editorial {
+            display: none !important;
+          }
+
+          .slancia-very-short-step-header {
+            margin-bottom: 12px !important;
+          }
+
+          .slancia-very-short-step-title {
+            font-size: clamp(1.5rem, 2.4vw, 2.3rem) !important;
+          }
+
+          .slancia-very-short-category-grid {
+            max-height: 33vh !important;
+          }
+
+          .slancia-very-short-footer {
+            margin-top: 10px !important;
+            padding-top: 10px !important;
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .slancia-step-enter,
           .slancia-fade,
@@ -475,7 +650,7 @@ export function OnboardingForm({
         }
       `}</style>
 
-      {/* Cinematic image layer — intentionally NO grid */}
+      {/* Cinematic image layer */}
       <div
         className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
@@ -494,9 +669,19 @@ export function OnboardingForm({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#080A0B] via-[#080A0B]/70 to-transparent" />
 
       {/* Main experience */}
-      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-89px)] w-full max-w-[1500px] flex-col px-5 pb-8 pt-4 sm:px-8 lg:px-12">
+      <div
+        className="
+          relative z-10 mx-auto flex min-h-[calc(100vh-89px)]
+          w-full max-w-[1500px] flex-col
+          px-5 pb-8 pt-4
+          sm:px-8
+          lg:px-12
+          slancia-short-main
+          slancia-very-short-main
+        "
+      >
         {/* Top workspace bar */}
-        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] pb-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] pb-5 slancia-short-header">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D9A441]/30 bg-[#0B0D0E]/70 text-[#D9A441] shadow-[0_0_35px_rgba(217,164,65,0.08)] backdrop-blur-xl">
               <span className="text-base">✦</span>
@@ -536,16 +721,18 @@ export function OnboardingForm({
             </div>
 
             <div className="flex gap-1.5">
-              {Array.from({ length: totalSteps }).map((_, index) => (
-                <div
-                  key={index}
-                  className={`h-[3px] w-8 rounded-full transition-all duration-500 ${
-                    index + 1 <= step
-                      ? "bg-[#D9A441] shadow-[0_0_12px_rgba(217,164,65,0.45)]"
-                      : "bg-white/[0.09]"
-                  }`}
-                />
-              ))}
+              {Array.from({ length: totalSteps }).map(
+                (_, index) => (
+                  <div
+                    key={index}
+                    className={`h-[3px] w-8 rounded-full transition-all duration-500 ${
+                      index + 1 <= step
+                        ? "bg-[#D9A441] shadow-[0_0_12px_rgba(217,164,65,0.45)]"
+                        : "bg-white/[0.09]"
+                    }`}
+                  />
+                )
+              )}
             </div>
 
             <div className="font-mono text-[10px] tracking-[0.12em] text-[#777D7A]">
@@ -555,11 +742,28 @@ export function OnboardingForm({
         </div>
 
         {/* Content */}
-        <div className="grid flex-1 grid-cols-1 gap-10 pt-8 lg:grid-cols-[minmax(360px,0.72fr)_minmax(650px,1.28fr)] lg:gap-16 lg:pt-12">
+        <div
+          className="
+            grid flex-1 grid-cols-1 gap-10 pt-8
+            lg:grid-cols-[minmax(360px,0.72fr)_minmax(650px,1.28fr)]
+            lg:gap-16 lg:pt-12
+            slancia-short-grid
+            slancia-very-short-grid
+          "
+        >
           {/* LEFT EDITORIAL PANEL */}
-          <aside className="relative flex flex-col justify-between border-b border-white/[0.07] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-14">
+          <aside
+            className="
+              relative flex flex-col justify-between
+              border-b border-white/[0.07]
+              pb-8
+              lg:border-b-0 lg:border-r lg:pb-0 lg:pr-14
+              slancia-short-left
+              slancia-very-short-left
+            "
+          >
             <div>
-              <div className="mb-7 flex items-center gap-3">
+              <div className="mb-7 flex items-center gap-3 slancia-short-eyebrow">
                 <div className="h-px w-8 bg-[#D9A441]" />
 
                 <span className="text-[9px] uppercase tracking-[0.28em] text-[#8A8171]">
@@ -577,7 +781,15 @@ export function OnboardingForm({
 
               <div className="slancia-fade">
                 <h1
-                  className="max-w-[570px] text-[clamp(3.8rem,6vw,6.8rem)] leading-[0.84] tracking-[-0.065em] text-[#F1ECE2]"
+                  className="
+                    max-w-[570px]
+                    text-[clamp(3.8rem,6vw,6.8rem)]
+                    leading-[0.84]
+                    tracking-[-0.065em]
+                    text-[#F1ECE2]
+                    slancia-short-heading
+                    slancia-very-short-heading
+                  "
                   style={{ fontFamily: "Fraunces, serif" }}
                 >
                   {step === 1 && (
@@ -645,7 +857,14 @@ export function OnboardingForm({
                   )}
                 </h1>
 
-                <p className="mt-8 max-w-[510px] text-[15px] leading-7 text-[#949A97]">
+                <p
+                  className="
+                    mt-8 max-w-[510px]
+                    text-[15px] leading-7 text-[#949A97]
+                    slancia-short-description
+                    slancia-very-short-description
+                  "
+                >
                   {step === 1 &&
                     "Your growth on X shouldn't depend on whatever the algorithm happens to reward today."}
 
@@ -662,7 +881,13 @@ export function OnboardingForm({
                     "You give us the context. Slancialab gives you a system for discovering, testing, measuring, and learning."}
                 </p>
 
-                <p className="mt-5 max-w-[500px] text-[13px] leading-6 text-[#646B68]">
+                <p
+                  className="
+                    mt-5 max-w-[500px]
+                    text-[13px] leading-6 text-[#646B68]
+                    slancia-short-secondary
+                  "
+                >
                   {step === 1 &&
                     "We'll use this to surface creators, patterns, strategies, and experiments that are actually relevant to you."}
 
@@ -682,24 +907,30 @@ export function OnboardingForm({
             </div>
 
             {/* Editorial footer */}
-            <div className="mt-10 hidden lg:block">
+            <div className="mt-10 hidden lg:block slancia-short-editorial slancia-very-short-editorial">
               <div className="mb-8 flex max-w-[520px] border-t border-white/[0.07] pt-6">
                 <div className="flex-1">
-                  <div className="text-2xl text-[#EEE8DD]">01</div>
+                  <div className="text-2xl text-[#EEE8DD]">
+                    01
+                  </div>
                   <div className="mt-1 text-[8px] uppercase tracking-[0.24em] text-[#5F6663]">
                     Discover
                   </div>
                 </div>
 
                 <div className="border-l border-white/[0.07] pl-8">
-                  <div className="text-2xl text-[#EEE8DD]">02</div>
+                  <div className="text-2xl text-[#EEE8DD]">
+                    02
+                  </div>
                   <div className="mt-1 text-[8px] uppercase tracking-[0.24em] text-[#5F6663]">
                     Experiment
                   </div>
                 </div>
 
                 <div className="border-l border-white/[0.07] pl-8">
-                  <div className="text-2xl text-[#EEE8DD]">03</div>
+                  <div className="text-2xl text-[#EEE8DD]">
+                    03
+                  </div>
                   <div className="mt-1 text-[8px] uppercase tracking-[0.24em] text-[#5F6663]">
                     Learn
                   </div>
@@ -715,9 +946,19 @@ export function OnboardingForm({
 
           {/* RIGHT INTERACTION PANEL */}
           <section className="relative min-w-0">
-            <div key={step} className="slancia-step-enter flex h-full flex-col">
+            <div
+              key={step}
+              className="slancia-step-enter flex h-full flex-col"
+            >
               {/* STEP HEADER */}
-              <div className="mb-8 flex items-end justify-between border-b border-white/[0.07] pb-5">
+              <div
+                className="
+                  mb-8 flex items-end justify-between
+                  border-b border-white/[0.07] pb-5
+                  slancia-short-step-header
+                  slancia-very-short-step-header
+                "
+              >
                 <div>
                   <div className="mb-3 flex items-center gap-3">
                     <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-[#D9A441]">
@@ -728,14 +969,31 @@ export function OnboardingForm({
                   </div>
 
                   <h2
-                    className="max-w-[850px] text-[clamp(2rem,3.5vw,4rem)] leading-[0.96] tracking-[-0.045em] text-[#F0EBE1]"
+                    className="
+                      max-w-[850px]
+                      text-[clamp(2rem,3.5vw,4rem)]
+                      leading-[0.96]
+                      tracking-[-0.045em]
+                      text-[#F0EBE1]
+                      slancia-short-step-title
+                      slancia-very-short-step-title
+                    "
                     style={{ fontFamily: "Fraunces, serif" }}
                   >
-                    {step === 1 && "What are you here to build?"}
-                    {step === 2 && "Where are you starting from?"}
-                    {step === 3 && "What are you trying to achieve?"}
-                    {step === 4 && "What should we help you do first?"}
-                    {step === 5 && "Ready to build your growth system?"}
+                    {step === 1 &&
+                      "What are you here to build?"}
+
+                    {step === 2 &&
+                      "Where are you starting from?"}
+
+                    {step === 3 &&
+                      "What are you trying to achieve?"}
+
+                    {step === 4 &&
+                      "What should we help you do first?"}
+
+                    {step === 5 &&
+                      "Ready to build your growth system?"}
                   </h2>
                 </div>
 
@@ -753,13 +1011,20 @@ export function OnboardingForm({
               {/* STEP 1 */}
               {step === 1 && (
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <p className="mb-7 max-w-[850px] text-[14px] leading-6 text-[#777E7B]">
-                    Choose every area you genuinely want to create around. We'll use
-                    this to surface creators, patterns, strategies, and experiments
-                    that are actually relevant to you.
+                  <p
+                    className="
+                      mb-7 max-w-[850px]
+                      text-[14px] leading-6 text-[#777E7B]
+                      slancia-short-step-copy
+                    "
+                  >
+                    Choose every area you genuinely want to create
+                    around. We'll use this to surface creators,
+                    patterns, strategies, and experiments that are
+                    actually relevant to you.
                   </p>
 
-                  <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+                  <div className="mb-5 flex flex-col gap-3 sm:flex-row slancia-short-search">
                     <div className="relative flex-1">
                       <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#6B716E]">
                         ⌕
@@ -767,7 +1032,9 @@ export function OnboardingForm({
 
                       <input
                         value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        onChange={(event) =>
+                          setSearch(event.target.value)
+                        }
                         placeholder="Search a category..."
                         className="h-12 w-full rounded-xl border border-white/[0.09] bg-black/25 pl-11 pr-4 text-sm text-[#ECE7DC] outline-none backdrop-blur-md placeholder:text-[#4F5653] transition focus:border-[#D9A441]/45 focus:bg-black/35"
                       />
@@ -780,20 +1047,32 @@ export function OnboardingForm({
                     </div>
                   </div>
 
-                  <div className="grid max-h-[52vh] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                  <div
+                    className="
+                      grid max-h-[52vh]
+                      grid-cols-1 gap-3 overflow-y-auto pr-1
+                      sm:grid-cols-2
+                      xl:grid-cols-3
+                      slancia-short-category-grid
+                      slancia-very-short-category-grid
+                    "
+                  >
                     {filteredCategories.map((category) => {
-                      const selected = selectedNiches.includes(category.name);
+                      const selected =
+                        selectedNiches.includes(category.name);
 
                       return (
                         <button
                           key={category.name}
                           type="button"
-                          onClick={() => toggleNiche(category.name)}
-                          className={`slancia-option group relative min-h-[122px] rounded-2xl border p-5 text-left ${
+                          onClick={() =>
+                            toggleNiche(category.name)
+                          }
+                          className={`slancia-option group relative rounded-2xl border text-left slancia-short-category-card ${
                             selected
                               ? "border-[#D9A441]/75 bg-[#D9A441]/[0.075] shadow-[0_0_35px_rgba(217,164,65,0.08)]"
                               : "border-white/[0.085] bg-black/20 hover:border-white/[0.18] hover:bg-white/[0.025]"
-                          }`}
+                          } min-h-[122px] p-5`}
                         >
                           <div className="flex items-start justify-between">
                             <span
@@ -817,7 +1096,7 @@ export function OnboardingForm({
                             </span>
                           </div>
 
-                          <div className="mt-7">
+                          <div className="mt-7 category-card-content">
                             <div className="text-[14px] font-medium tracking-[-0.01em] text-[#E5E0D6]">
                               {category.name}
                             </div>
@@ -846,25 +1125,35 @@ export function OnboardingForm({
               {/* STEP 2 */}
               {step === 2 && (
                 <div className="flex flex-1 flex-col">
-                  <p className="mb-8 max-w-[780px] text-[14px] leading-6 text-[#777E7B]">
-                    Tell us roughly where you are today. This gives your experiments
-                    the right baseline and keeps comparisons meaningful.
+                  <p
+                    className="
+                      mb-8 max-w-[780px]
+                      text-[14px] leading-6 text-[#777E7B]
+                      slancia-short-step-copy
+                    "
+                  >
+                    Tell us roughly where you are today. This gives
+                    your experiments the right baseline and keeps
+                    comparisons meaningful.
                   </p>
 
-                  <div className="grid max-w-[900px] grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid max-w-[900px] grid-cols-1 gap-3 sm:grid-cols-2 slancia-short-option-grid">
                     {availableStages.map((stage, index) => {
-                      const selected = followerStage === stage;
+                      const selected =
+                        followerStage === stage;
 
                       return (
                         <button
                           key={stage}
                           type="button"
-                          onClick={() => setFollowerStage(stage)}
-                          className={`slancia-option group relative min-h-[120px] rounded-2xl border p-6 text-left ${
+                          onClick={() =>
+                            setFollowerStage(stage)
+                          }
+                          className={`slancia-option group relative rounded-2xl border p-6 text-left slancia-short-option-card ${
                             selected
                               ? "border-[#D9A441]/75 bg-[#D9A441]/[0.075] shadow-[0_0_35px_rgba(217,164,65,0.08)]"
                               : "border-white/[0.085] bg-black/20 hover:border-white/[0.18] hover:bg-white/[0.025]"
-                          }`}
+                          } min-h-[120px]`}
                         >
                           <div className="flex items-start justify-between">
                             <span className="font-mono text-[10px] tracking-[0.2em] text-[#D9A441]/70">
@@ -882,7 +1171,7 @@ export function OnboardingForm({
                             </span>
                           </div>
 
-                          <div className="mt-8 text-[16px] text-[#E5E0D6]">
+                          <div className="mt-8 text-[16px] text-[#E5E0D6] option-card-content">
                             {stage}
                           </div>
 
@@ -904,26 +1193,35 @@ export function OnboardingForm({
               {/* STEP 3 */}
               {step === 3 && (
                 <div className="flex flex-1 flex-col">
-                  <p className="mb-8 max-w-[800px] text-[14px] leading-6 text-[#777E7B]">
-                    There isn't one definition of growth. Pick the outcome that
-                    matters most to you right now — we'll use it to shape your
-                    experiments.
+                  <p
+                    className="
+                      mb-8 max-w-[800px]
+                      text-[14px] leading-6 text-[#777E7B]
+                      slancia-short-step-copy
+                    "
+                  >
+                    There isn't one definition of growth. Pick the
+                    outcome that matters most to you right now —
+                    we'll use it to shape your experiments.
                   </p>
 
-                  <div className="grid max-w-[1000px] grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="grid max-w-[1000px] grid-cols-1 gap-3 md:grid-cols-2 slancia-short-option-grid">
                     {GOALS.map((item) => {
-                      const selected = goal === item.value;
+                      const selected =
+                        goal === item.value;
 
                       return (
                         <button
                           key={item.value}
                           type="button"
-                          onClick={() => setGoal(item.value)}
-                          className={`slancia-option relative min-h-[132px] rounded-2xl border p-6 text-left ${
+                          onClick={() =>
+                            setGoal(item.value)
+                          }
+                          className={`slancia-option relative rounded-2xl border p-6 text-left slancia-short-option-card ${
                             selected
                               ? "border-[#D9A441]/75 bg-[#D9A441]/[0.075] shadow-[0_0_35px_rgba(217,164,65,0.08)]"
                               : "border-white/[0.085] bg-black/20 hover:border-white/[0.18] hover:bg-white/[0.025]"
-                          }`}
+                          } min-h-[132px]`}
                         >
                           <div className="flex items-start justify-between">
                             <span
@@ -947,7 +1245,7 @@ export function OnboardingForm({
                             </span>
                           </div>
 
-                          <div className="mt-7 text-[15px] text-[#E5E0D6]">
+                          <div className="mt-7 text-[15px] text-[#E5E0D6] option-card-content">
                             {item.title}
                           </div>
 
@@ -964,25 +1262,35 @@ export function OnboardingForm({
               {/* STEP 4 */}
               {step === 4 && (
                 <div className="flex flex-1 flex-col">
-                  <p className="mb-8 max-w-[800px] text-[14px] leading-6 text-[#777E7B]">
-                    Your first session should answer a real question, not leave you
-                    staring at another dashboard. Where would you like to begin?
+                  <p
+                    className="
+                      mb-8 max-w-[800px]
+                      text-[14px] leading-6 text-[#777E7B]
+                      slancia-short-step-copy
+                    "
+                  >
+                    Your first session should answer a real question,
+                    not leave you staring at another dashboard. Where
+                    would you like to begin?
                   </p>
 
-                  <div className="grid max-w-[1000px] grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="grid max-w-[1000px] grid-cols-1 gap-3 md:grid-cols-2 slancia-short-option-grid">
                     {FIRST_ACTIONS.map((item) => {
-                      const selected = firstAction === item.value;
+                      const selected =
+                        firstAction === item.value;
 
                       return (
                         <button
                           key={item.value}
                           type="button"
-                          onClick={() => setFirstAction(item.value)}
-                          className={`slancia-option relative min-h-[142px] rounded-2xl border p-6 text-left ${
+                          onClick={() =>
+                            setFirstAction(item.value)
+                          }
+                          className={`slancia-option relative rounded-2xl border p-6 text-left slancia-short-option-card ${
                             selected
                               ? "border-[#D9A441]/75 bg-[#D9A441]/[0.075] shadow-[0_0_35px_rgba(217,164,65,0.08)]"
                               : "border-white/[0.085] bg-black/20 hover:border-white/[0.18] hover:bg-white/[0.025]"
-                          }`}
+                          } min-h-[142px]`}
                         >
                           <div className="flex items-start justify-between">
                             <span
@@ -1006,7 +1314,7 @@ export function OnboardingForm({
                             </span>
                           </div>
 
-                          <div className="mt-8 text-[15px] text-[#E5E0D6]">
+                          <div className="mt-8 text-[15px] text-[#E5E0D6] option-card-content">
                             {item.title}
                           </div>
 
@@ -1023,13 +1331,19 @@ export function OnboardingForm({
               {/* STEP 5 */}
               {step === 5 && (
                 <div className="flex flex-1 flex-col">
-                  <p className="mb-8 max-w-[800px] text-[14px] leading-6 text-[#777E7B]">
-                    Here's the context we'll use to personalize your first
-                    experiments. Nothing is permanent — your profile should evolve
-                    as you learn.
+                  <p
+                    className="
+                      mb-8 max-w-[800px]
+                      text-[14px] leading-6 text-[#777E7B]
+                      slancia-short-step-copy
+                    "
+                  >
+                    Here's the context we'll use to personalize your
+                    first experiments. Nothing is permanent — your
+                    profile should evolve as you learn.
                   </p>
 
-                  <div className="grid max-w-[1000px] gap-3">
+                  <div className="grid max-w-[1000px] gap-3 slancia-short-option-grid">
                     <div className="rounded-2xl border border-white/[0.08] bg-black/25 p-6 backdrop-blur-md">
                       <div className="text-[8px] uppercase tracking-[0.24em] text-[#626966]">
                         Your space
@@ -1079,8 +1393,8 @@ export function OnboardingForm({
                       </div>
 
                       <div className="mt-2 text-[11px] leading-5 text-[#676E6B]">
-                        Slancialab will use this as the starting point for your
-                        first session.
+                        Slancialab will use this as the starting
+                        point for your first session.
                       </div>
                     </div>
                   </div>
@@ -1088,7 +1402,13 @@ export function OnboardingForm({
               )}
 
               {/* FOOTER CONTROLS */}
-              <div className="mt-8 border-t border-white/[0.07] pt-5">
+              <div
+                className="
+                  mt-8 border-t border-white/[0.07] pt-5
+                  slancia-short-footer
+                  slancia-very-short-footer
+                "
+              >
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
                     {step > 1 ? (
@@ -1117,7 +1437,7 @@ export function OnboardingForm({
                       type="button"
                       onClick={nextStep}
                       disabled={!canContinue}
-                      className={`slancia-button flex h-12 items-center justify-center gap-5 rounded-full px-7 text-[12px] font-medium ${
+                      className={`slancia-button flex h-12 items-center justify-center gap-5 rounded-full px-7 text-[12px] font-medium slancia-short-button ${
                         canContinue
                           ? "bg-[#D9A441] text-[#090B0C] shadow-[0_10px_35px_rgba(217,164,65,0.18)] hover:bg-[#E6B34E] hover:shadow-[0_15px_45px_rgba(217,164,65,0.25)]"
                           : "cursor-not-allowed border border-white/[0.08] bg-white/[0.035] text-[#555C59]"
@@ -1158,7 +1478,7 @@ export function OnboardingForm({
                       <button
                         type="submit"
                         disabled={!canContinue}
-                        className="slancia-button flex h-12 items-center justify-center gap-5 rounded-full bg-[#D9A441] px-8 text-[12px] font-medium text-[#090B0C] shadow-[0_10px_35px_rgba(217,164,65,0.2)] hover:bg-[#E6B34E] hover:shadow-[0_15px_50px_rgba(217,164,65,0.28)] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="slancia-button flex h-12 items-center justify-center gap-5 rounded-full bg-[#D9A441] px-8 text-[12px] font-medium text-[#090B0C] shadow-[0_10px_35px_rgba(217,164,65,0.2)] hover:bg-[#E6B34E] hover:shadow-[0_15px_50px_rgba(217,164,65,0.28)] disabled:cursor-not-allowed disabled:opacity-50 slancia-short-button"
                       >
                         Enter Slancialab
                         <ArrowRight />
@@ -1167,8 +1487,11 @@ export function OnboardingForm({
                   )}
                 </div>
 
-                <div className="mt-5 flex items-center justify-between text-[8px] uppercase tracking-[0.24em] text-[#454C49]">
-                  <span>Slancialab · Growth with evidence</span>
+                <div className="mt-5 flex items-center justify-between text-[8px] uppercase tracking-[0.24em] text-[#454C49] slancia-short-footer-note">
+                  <span>
+                    Slancialab · Growth with evidence
+                  </span>
+
                   <span className="hidden sm:block">
                     Experiment · Learn · Grow
                   </span>
