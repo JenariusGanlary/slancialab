@@ -110,9 +110,9 @@ model XAccount {
   userId String @unique
 
   // X account identity
-  xUserId        String @unique
-  username       String?
-  displayName    String?
+  xUserId         String  @unique
+  username        String?
+  displayName     String?
   profileImageUrl String?
 
   // OAuth tokens
@@ -130,6 +130,41 @@ model XAccount {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Posts fetched from this connected X account
+  xPosts XPost[]
+}
+
+model XPost {
+  id String @id @default(cuid())
+
+  // Connection that owns this X post
+  xAccountId String
+
+  // Permanent X post identifier
+  // This prevents the same X post from being imported multiple times.
+  xPostId String @unique
+
+  // Raw post data
+  content String?
+  postUrl String?
+
+  // X publication timestamp
+  publishedAt DateTime?
+
+  // Performance metrics
+  views   Int?
+  likes   Int?
+  replies Int?
+  reposts Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  xAccount XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([xAccountId])
+  @@index([publishedAt])
 }
 
 model Strategy {
@@ -158,22 +193,18 @@ model Experiment {
   strategyId        String
   researchFindingId String?
 
-  // Experiment lifecycle
   status      String   @default("active")
   startedAt   DateTime @default(now())
   completedAt DateTime?
 
-  // Experiment definition
   hypothesis String?
   protocol   String?
 
-  // Experiment protocol
   durationDays            Int?
   targetPostCount         Int?
   primaryMetric           String?
   successThresholdPercent Int?
 
-  // Experiment baseline
   baselineAverage    Float?
   baselineSampleSize Int?
   baselineCapturedAt DateTime?
@@ -196,20 +227,16 @@ model CheckIn {
 }
 
 model ExperimentPost {
-  id           String   @id @default(cuid())
+  id           String @id @default(cuid())
   experimentId String
 
-  // X post identity
   postId  String?
   postUrl String?
 
-  // Post content
   content String?
 
-  // Publishing state
   publishedAt DateTime?
 
-  // Performance snapshot
   views   Int?
   likes   Int?
   replies Int?
@@ -221,10 +248,9 @@ model ExperimentPost {
 }
 
 model ExperimentResult {
-  id           String @id @default(cuid())
-  experimentId String @unique
+  id           String   @id @default(cuid())
+  experimentId String   @unique
 
-  // Final evaluation snapshot
   status                  String
   primaryMetric           String
   postsMeasured           Int
@@ -235,7 +261,6 @@ model ExperimentResult {
   percentageChange        Float?
   successThresholdPercent Int?
 
-  // Historical record timestamp
   recordedAt DateTime @default(now())
 
   experiment Experiment @relation(fields: [experimentId], references: [id])
@@ -257,14 +282,11 @@ model ResearchFinding {
   id        String @id @default(cuid())
   creatorId String
 
-  // Pattern identity
   dimension String
   pattern   String
 
-  // Signal information
   signalLevel String
 
-  // Evidence snapshot
   postCount         Int
   measuredCount     Int
   evidenceLabel     String
@@ -277,26 +299,22 @@ model ResearchFinding {
 }
 
 model CreatorPost {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   creatorId String
 
-  // Existing research fields
   patternTag  String?
   content     String?
   observation String?
   postUrl     String?
   createdAt   DateTime @default(now())
 
-  // Post metadata
   publishedAt DateTime?
 
-  // Performance metrics
   views   Int?
   likes   Int?
   replies Int?
   reposts Int?
 
-  // Structured content analysis
   hookType        HookType?
   structure       ContentStructure?
   topic           String?
@@ -309,7 +327,6 @@ model CreatorPost {
   sentenceType    SentenceType?
   personalization Personalization?
 
-  // Future-friendly research metadata
   researchNotes String?
 
   creator Creator @relation(fields: [creatorId], references: [id])
